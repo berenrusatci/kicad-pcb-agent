@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/sparam-report/v1",
+  "title": "ProjectE S-parameter synthesis report",
+  "description": "Output of tools/scripts/sparam.py. Two fields carry the honesty load. 'lossless' is explicit rather than implied, because a lossless insertion-loss figure looks like good news when it is actually an absent model. 'se2gmm_port_order' records the mixed-mode port convention that was MEASURED against scikit-rf rather than assumed - the earlier refusal to compute mixed-mode at all is documented in sim/openems.py's evaluate_touchstone.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "mode",
+    "model_class",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "sparam-report/v1"},
+    "tool": {"const": "sparam"},
+    "mode": {"enum": ["line", "cascade", "mixed-mode"]},
+    "model_class": {"const": "tem_line_from_2d_solve"},
+    "signoff": {
+      "const": false,
+      "description": "A uniform TEM trace is not a link. Vias, connectors, launches and bends are absent, so this cannot close a channel budget on its own."
+    },
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": ["SKRF_ABSENT", "INSERTION_LOSS_EXCEEDED",
+                 "RETURN_LOSS_EXCEEDED"]
+      }
+    },
+    "lossless": {
+      "type": "boolean",
+      "description": "True when neither --tan-delta nor --r-ohm-per-m was given. Reported prominently because an absent loss model reads as a low-loss result."
+    },
+    "se2gmm_port_order": {
+      "const": "per_end",
+      "description": "Measured on two identical lossless uncoupled lines: ports [A_in, B_in, A_out, B_out] give |Sdd21| = 1, while [A_in, A_out, B_in, B_out] give 0. Touchstone records no port order, so this is a property of the conversion, not of any file."
+    },
+    "network": {
+      "type": "object",
+      "required": ["ports", "points", "frequency_hz", "port_impedance_ohm"],
+      "properties": {
+        "ports": {"type": "integer", "minimum": 1},
+        "points": {"type": "integer", "minimum": 2},
+        "frequency_hz": {
+          "type": "object",
+          "required": ["start", "stop"],
+          "properties": {
+            "start": {"type": "number", "exclusiveMinimum": 0},
+            "stop": {"type": "number", "exclusiveMinimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "port_impedance_ohm": {"type": "number", "exclusiveMinimum": 0},
+        "insertion_loss_db": {"$ref": "#/$defs/band"},
+        "return_loss_db": {"$ref": "#/$defs/band"},
+        "label": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "mixed_mode": {
+      "type": "object",
+      "description": "Present for any 4-port. mode_conversion_db is the field that says whether the pair is really symmetric: a perfectly balanced structure converts no energy, so a rising Sdc21 means skew or asymmetry has become common-mode noise.",
+      "properties": {
+        "port_order": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Always [D1, D2, C1, C2] after conversion."
+        },
+        "sdd21_db": {"$ref": "#/$defs/band"},
+        "sdd11_db": {"$ref": "#/$defs/band"},
+        "scc21_db": {"$ref": "#/$defs/band"},
+        "mode_conversion_db": {
+          "type": "object",
+          "properties": {
+            "sdc21_worst": {"$ref": "#/$defs/extreme"},
+            "scd21_worst": {"$ref": "#/$defs/extreme"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Where the line parameters came from. 'source' distinguishes a 2-D field solve from explicitly supplied --z0/--er-eff, which are very different grades of evidence. declared_port_order appears whenever a 4-port file was read, because the caller had to declare it.",
+      "properties": {
+        "source": {"type": "string"},
+        "geometry": {"type": "string"},
+        "grid_pitch_um": {"type": "number", "exclusiveMinimum": 0},
+        "nodes": {"type": "integer", "minimum": 1},
+        "z0_ohm": {"type": "number", "exclusiveMinimum": 0},
+        "z_odd_ohm": {"type": "number", "exclusiveMinimum": 0},
+        "z_even_ohm": {"type": "number", "exclusiveMinimum": 0},
+        "z_diff_ohm": {"type": "number", "exclusiveMinimum": 0},
+        "er_eff": {"type": "number", "exclusiveMinimum": 0},
+        "er_eff_odd": {"type": "number", "exclusiveMinimum": 0},
+        "er_eff_even": {"type": "number", "exclusiveMinimum": 0},
+        "delay_ps": {"type": "number", "exclusiveMinimum": 0},
+        "declared_port_order": {"enum": ["per_end", "per_line"]},
+        "cascaded": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "gate": {
+      "type": "object",
+      "required": ["applied"],
+      "properties": {
+        "applied": {"type": "boolean"},
+        "insertion_loss_db": {"$ref": "#/$defs/gateBand"},
+        "return_loss_db": {"$ref": "#/$defs/gateBand"}
+      },
+      "additionalProperties": false
+    },
+    "touchstone_written": {"type": "string"},
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "extreme": {
+      "type": "object",
+      "required": ["db", "frequency_hz"],
+      "properties": {
+        "db": {"type": "number"},
+        "frequency_hz": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "band": {
+      "type": "object",
+      "properties": {
+        "at_start": {"type": "number"},
+        "at_stop": {"type": "number"},
+        "worst": {"$ref": "#/$defs/extreme"}
+      },
+      "additionalProperties": false
+    },
+    "gateBand": {
+      "type": "object",
+      "required": ["worst", "limit", "within"],
+      "properties": {
+        "worst": {"type": "number"},
+        "limit": {"type": "number"},
+        "within": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

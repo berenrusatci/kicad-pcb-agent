@@ -1,0 +1,26 @@
+{
+  "schema_version": "pcb-decision-units/v1",
+  "evidence": [],
+  "decisions": [
+    {
+      "decision_id": "FIXTURE-D1",
+      "question": "Can the committed fixture pass the declared contract?",
+      "owner_skill": "decompose-pcb-decisions",
+      "status": "ready",
+      "depends_on": [],
+      "constraints": [
+        "FIXTURE-C1"
+      ],
+      "options": [
+        "pass",
+        "fail"
+      ],
+      "required_evidence": [
+        "hash-bound artifact"
+      ],
+      "evidence_ids": [],
+      "output_artifact": "tools/fixtures/context_pack/projecte_ready/result.json",
+      "invalidation_triggers": []
+    }
+  ]
+}

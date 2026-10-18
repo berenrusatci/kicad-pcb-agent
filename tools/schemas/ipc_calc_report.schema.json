@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/ipc-calc-report/v1",
+  "title": "ProjectE IPC calculator report envelope",
+  "description": "Shared output shape for the IPC CALCULATORS (trace_width, clearance, via_current). A calculator answers a question and has no PASS/FAIL verdict, so it exits 0 on success and 2 on bad input; it never exits 1. The pcb-tool-v2 originals emitted a bare result dict with no schema_version, no model labelling and no machine-readable limits, so a consumer could not tell a screening estimate from a sign-off number.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "standard",
+    "model_class",
+    "signoff",
+    "inputs",
+    "results",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "ipc-calc-report/v1"},
+    "tool": {
+      "enum": ["trace_width", "clearance", "via_current"]
+    },
+    "standard": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Which standard (and which adaptation of it) produced this number."
+    },
+    "model_class": {
+      "type": "string",
+      "minLength": 1,
+      "description": "e.g. exploratory_closed_form, tabulated_secondary_source. Mirrors common.si_models.MODEL_CLASS where the closed form is shared."
+    },
+    "signoff": {
+      "const": false,
+      "description": "Pinned false. No calculator in this bundle is a sign-off tool; if that ever changes it must be a deliberate schema revision, not a silent field flip."
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Every argument that affected the result, echoed back so a report is reproducible without the original command line.",
+      "additionalProperties": true
+    },
+    "results": {
+      "type": "object",
+      "description": "The computed values. Shape is tool-specific.",
+      "additionalProperties": true
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "description": "The honesty notes. REQUIRED and non-empty on purpose: in the archive these lived only in module docstrings, where a machine consumer could never see them, which is how a screening estimate quietly becomes a compliance claim."
+    }
+  },
+  "additionalProperties": true
+}

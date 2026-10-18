@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/fab-capabilities/v1",
+  "title": "ProjectE scoped fab capability profile skeleton",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "vendor",
+    "service",
+    "process",
+    "revision_or_date",
+    "locator",
+    "accessed",
+    "snapshot_sha256",
+    "layers",
+    "finished_copper_um",
+    "stackup_id",
+    "finish",
+    "soldermask",
+    "limits",
+    "manufacturing_impedance_tolerance",
+    "test_service_impedance_tolerance",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {"const": "fab-capabilities/v1"},
+    "profile_id": {"type": ["string", "null"]},
+    "vendor": {"type": ["string", "null"]},
+    "service": {"type": ["string", "null"]},
+    "process": {"type": ["string", "null"]},
+    "revision_or_date": {"type": ["string", "null"]},
+    "locator": {"type": ["string", "null"]},
+    "accessed": {"type": ["string", "null"], "format": "date"},
+    "snapshot_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "layers": {"type": ["integer", "null"], "minimum": 1},
+    "finished_copper_um": {"type": ["number", "null"]},
+    "stackup_id": {"type": ["string", "null"]},
+    "finish": {"type": ["string", "null"]},
+    "soldermask": {
+      "type": "object",
+      "required": ["color", "min_bridge_mm"],
+      "properties": {
+        "color": {"type": ["string", "null"]},
+        "min_bridge_mm": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "min_trace_mm", "min_space_mm", "min_finished_hole_mm",
+        "min_annular_ring_mm", "max_aspect_ratio"
+      ],
+      "properties": {
+        "min_trace_mm": {"type": ["number", "null"]},
+        "min_space_mm": {"type": ["number", "null"]},
+        "min_finished_hole_mm": {"type": ["number", "null"]},
+        "min_annular_ring_mm": {"type": ["number", "null"]},
+        "max_aspect_ratio": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "manufacturing_impedance_tolerance": {
+      "$ref": "#/$defs/impedanceToleranceScope"
+    },
+    "test_service_impedance_tolerance": {
+      "$ref": "#/$defs/impedanceToleranceScope"
+    },
+    "status": {"enum": ["TBD", "CONFIRM", "PASS"]}
+  },
+  "$defs": {
+    "impedanceToleranceScope": {
+      "type": "object",
+      "required": [
+        "percent", "service_or_order_option", "scope", "source_locator", "status"
+      ],
+      "properties": {
+        "percent": {"type": ["number", "null"], "minimum": 0},
+        "service_or_order_option": {"type": ["string", "null"]},
+        "scope": {"type": ["string", "null"]},
+        "source_locator": {"type": ["string", "null"]},
+        "status": {"enum": ["TBD", "CONFIRM", "PASS"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "No numeric vendor capability is invented. Manufacturing acceptance tolerance and test-service tolerance are separate scopes. A null/TBD profile permits only LOCAL_POLICY/SCREEN_ONLY progress, never PASS."
+}

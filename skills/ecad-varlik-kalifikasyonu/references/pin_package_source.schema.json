@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/pin-package-source/v1",
+  "title": "ProjectE authoritative pin/package source — an EXPLICITLY DECLARED record, not a datasheet extraction",
+  "type": "object",
+  "required": ["schema_version", "mpn", "package_code", "provenance", "pins", "pads", "land_pattern"],
+  "properties": {
+    "schema_version": {"const": "pin-package-source/v1"},
+    "mpn": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "The MPN whose asset is being qualified. It is an INPUT. bom-lifecycle selects parts; this record and the tool reading it never do."
+    },
+    "manufacturer": {"type": ["string", "null"]},
+    "package_code": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "The manufacturer's own package designator (e.g. DRL0006A), not a generic family name. 'QFN-40' is a shape; a package code is an identity, and the wrong-variant substitutions this gate exists for are between two parts that share a shape."
+    },
+    "package_family": {"type": ["string", "null"]},
+    "expected_footprint_name": {
+      "type": ["string", "null"],
+      "$comment": "A token that the candidate .kicad_mod's own (footprint \"NAME\" ...) must contain. THIS PROVES LABELLING, NOT GEOMETRY — a file can be named anything. It is checked because disagreement between the label and the measured geometry is the signal; agreement alone is not evidence. Absent => the attribute is excluded and the run caps at CONFIRM."
+    },
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "pins": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/pin"},
+      "$comment": "The authoritative pin table. An EMPTY array is not 'a part with no pins' — it is read as 'the pin universe could not be read', which produces NO_COVERAGE with eligible>0 and scanned=0. It never produces GREEN and it never produces a mass RED against the candidate."
+    },
+    "pads": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/pad"},
+      "$comment": "The authoritative pad/land table. Same empty-array semantics as pins."
+    },
+    "exposed_pad": {"$ref": "#/$defs/exposed_pad"},
+    "land_pattern": {"$ref": "#/$defs/land_pattern"},
+    "package_dimensions": {
+      "type": ["object", "null"],
+      "properties": {
+        "body_x_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "body_y_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "height_max_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "pitch_mm": {"type": ["number", "null"], "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false,
+      "$comment": "RECORDED, NOT VERIFIED. Body outline and pitch are not derived from a .kicad_mod by this tool: a body outline lives on fab/silk layers whose contents are a drawing convention, and a pitch inferred from pad centres guesses the row structure. Publishing an unverified number as if it were measured is the failure mode; these fields are carried into the report labelled as declared-only. The VERIFIED geometry is land_pattern.pad_span_*."
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/exception"},
+      "$comment": "An exception removes an item from the SCANNED population, which is exactly the move that turns a gate into a formality. So it is accepted only with a non-empty reason AND a complete five-field provenance block of its own. A refused exception is not dropped: the item stays scanned, the refusal is reported and it adds a CONFIRM cap — writing an unevidenced exception makes the report louder, never quieter."
+    },
+    "notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$comment": "OPEN QUESTION, DELIBERATELY LEFT OPEN (2026-08-10). Which artifact is the canonical repo-wide authoritative pin/package source for ECAD qualification is NOT decided. This schema does NOT claim to be it. It is the contract for an EXPLICITLY DECLARED, human- or vendor-authored record: a person read the manufacturer document, transcribed the table, and signed the transcription with provenance. There is no PDF parser, no OCR and no heuristic table scraper behind it — inventing a datasheet-extraction format and then treating its output as ground truth is the fabricated-source failure this bundle is built against. Until the canonical artifact is chosen, a run whose source is not provenance-complete reaches CONFIRM at best and can never reach GREEN.",
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "required": ["document_id", "revision", "locator", "accessed", "snapshot_sha256"],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "The manufacturer's own document number (SLVSF74C), not a file name."
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Pin tables get renumbered between revisions. 'the datasheet' is not a citation."
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Where inside the document: table number, section, page. A reader must be able to go and check the transcription without reading the whole document."
+        },
+        "accessed": {"type": "string", "minLength": 1},
+        "snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$",
+          "$comment": "Digest of the snapshot document this record was transcribed FROM. Pass that document as --source-snapshot to have it verified; a mismatch is STALE. Without --source-snapshot the digest is recorded and reported as verified=null — declared but unchecked."
+        },
+        "source_url": {"type": ["string", "null"]},
+        "authored_by": {"type": ["string", "null"]},
+        "transcription_method": {
+          "type": ["string", "null"],
+          "$comment": "How the table got into this file: manual, vendor_supplied, ... Whatever it was, it was not this tool."
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "skills/_shared/coverage-gate.md, evidence_origin table, AUTHORITATIVE_SOURCE row: document_id + revision + locator + accessed + snapshot_sha256 are ALL mandatory. Any one missing and the record is a note, not a source: the run caps at CONFIRM."
+    },
+    "pin": {
+      "type": "object",
+      "required": ["number", "name", "function", "electrical_role"],
+      "properties": {
+        "number": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "String, not integer: BGA balls are A1/AK24 and exposed pads are 'EP'. An integer type here would force a lossy conversion on exactly the parts this gate matters most for."
+        },
+        "name": {
+          "type": "string",
+          "$comment": "THE EXACT NAME THE SYMBOL PIN MUST CARRY. Compared literally after stripping surrounding whitespace — no case folding, no ~{X} overbar rewriting, no alias table. A normaliser is precisely where a wrong pin quietly becomes a right one, so if the symbol writes ~{RESET} the author writes ~{RESET} here."
+        },
+        "function": {
+          "type": "string",
+          "$comment": "Human-facing description from the document, carried into the report so a RED says what was actually swapped ('pin 1: expected VIN (input supply), symbol has GND'). Not machine-compared: the symbol file has no field to compare it to — name is that field."
+        },
+        "electrical_role": {
+          "enum": [
+            "input", "output", "bidirectional", "tri_state", "passive", "free",
+            "unspecified", "power_in", "power_out", "open_collector",
+            "open_emitter", "no_connect"
+          ],
+          "$comment": "KiCad's electrical pin types verbatim, because that is the token the .kicad_sym contains. Mapping datasheet prose onto one of these is the SOURCE AUTHOR's declaration; the tool never guesses it. This is what catches an EN pin typed 'input' against a variant where pin 4 is a no_connect."
+        }
+      },
+      "additionalProperties": false
+    },
+    "pad": {
+      "type": "object",
+      "required": ["number", "type"],
+      "properties": {
+        "number": {"type": "string", "minLength": 1},
+        "type": {
+          "enum": ["smd", "thru_hole", "np_thru_hole", "connect"],
+          "$comment": "KiCad's pad types verbatim, same reason as electrical_role. This is an IDENTITY claim (is this the right kind of land?), not a manufacturability claim — NSMD/SMD, paste coverage and mask geometry belong to dfm."
+        }
+      },
+      "additionalProperties": false
+    },
+    "exposed_pad": {
+      "type": ["object", "null"],
+      "required": ["present"],
+      "properties": {
+        "present": {
+          "type": "boolean",
+          "$comment": "true means the document specifies a thermal/exposed pad. A footprint without it is then the wrong package variant — the failure cad_assets.py names in its own header, which passes ERC and DRC and is found on the first soldered board."
+        },
+        "pad_number": {"type": ["string", "null"]},
+        "symbol_pin_number": {
+          "type": ["string", "null"],
+          "$comment": "The EP must exist on the SYMBOL side too. A footprint EP with no corresponding symbol pin cannot be tied to GND (MASTER_RULEBOOK Faz 1) and ERC will not complain, because there is nothing there to complain about."
+        },
+        "must_be_tied_to": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "land_pattern": {
+      "type": "object",
+      "required": ["source_type"],
+      "properties": {
+        "source_type": {
+          "enum": ["manufacturer", "ipc_derived", "local_library", "vendor_ecad", "none", "unknown"],
+          "$comment": "PREFER the manufacturer land pattern whenever one exists. Only 'manufacturer' (with document_id and revision) leaves a run eligible for GREEN. 'ipc_derived'/'local_library'/'vendor_ecad' WITH a derivation recorded is LOCAL_POLICY; the same without a derivation is SCREEN_ONLY. 'none'/'unknown' is CONFIRM. If a manufacturer application note contradicts a generic footprint rule, the application note wins and no compromise geometry is synthesised."
+        },
+        "document_id": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "derivation": {
+          "type": ["string", "null"],
+          "$comment": "REQUIRED IN PRACTICE for any non-manufacturer source_type: the technique and its parameters, e.g. 'IPC-7351B nominal, density level M'. Absent, the report cannot say what the pattern was derived from and drops to SCREEN_ONLY."
+        },
+        "pad_span_x_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "pad_span_y_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "tolerance_mm": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "$comment": "MANDATORY whenever pad_span_* is given. There is no default: a tolerance nobody sourced is a number this tool invented, and a comparison against an invented tolerance is not a measurement. Without it the span attributes are excluded and the run caps at CONFIRM."
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "pad_span_* are CENTRELINE spans — the distance between the outermost pad CENTRES, exposed pad excluded — because that is what can be read out of a .kicad_mod without guessing pad-edge conventions. If the document quotes lead-tip extents instead, do not transcribe them here: they are a different measurement, and quoting one as the other is INVALID_METRIC under gate_receipt.schema.json."
+    },
+    "exception": {
+      "type": "object",
+      "required": ["scope", "item", "reason", "evidence"],
+      "properties": {
+        "scope": {"enum": ["pin", "pad", "package_attribute"]},
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "The pin number, pad number, or attribute name (footprint_name / pad_span_x_mm / pad_span_y_mm)."
+        },
+        "reason": {"type": "string", "minLength": 1},
+        "evidence": {"$ref": "#/$defs/provenance"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

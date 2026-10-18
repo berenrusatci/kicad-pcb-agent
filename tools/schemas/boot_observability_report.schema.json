@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/boot-observability-report/v1",
+  "title": "ProjectE boot observability report",
+  "description": "Output of tools/scripts/board/boot_observability.py. Answers the question a bring-up bench asks first: the board does not boot, which rail failed? Crosses rail_budget's enable graph against testpoint_plan's scope. 'checks_physical_access' is pinned false - there is no placement here, and testpoint_plan.py already draws that line with phase: early_schematic / physical: null.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "signoff",
+    "checks_physical_access",
+    "power_up_tiers",
+    "observations",
+    "rails",
+    "failure_classes",
+    "resets",
+    "enable_edges",
+    "diagnosability",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "boot-observability-report/v1"},
+    "tool": {"const": "boot_observability"},
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {"const": "early_schematic"},
+    "signoff": {"const": false},
+    "checks_physical_access": {
+      "const": false,
+      "description": "Checks the SCOPE of the test-point plan, never whether a pad is reachable by a probe. Placement does not exist at this phase."
+    },
+    "power_up_tiers": {
+      "type": "array",
+      "description": "From railbudget.enable_order. Rails inside one tier come up together - the graph does not order them, and that is exactly where ambiguity can hide.",
+      "items": {"type": "array", "items": {"type": "string"}}
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["net", "kind"],
+        "properties": {
+          "net": {"type": "string", "minLength": 1},
+          "kind": {
+            "enum": ["rail_voltage", "power_good", "enable_signal", "reset_signal"],
+            "description": "NO DEFAULT. A power-good pin counted as a rail measurement is the error this distinction exists to prevent: a regulator can assert PG into a rail held down by a downstream short."
+          },
+          "source": {"type": "string"}
+        }
+      }
+    },
+    "rails": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rail", "tier", "observations", "status", "proves_rail", "detail"],
+        "properties": {
+          "rail": {"type": "string", "minLength": 1},
+          "tier": {"type": "integer"},
+          "observations": {"type": "array", "items": {"type": "string"}},
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "proves_rail": {
+            "type": "boolean",
+            "description": "True only when a rail_voltage observation exists. PG and enable observations are real information about something else."
+          },
+          "issue": {"enum": ["RAIL_UNOBSERVED", "PG_ONLY"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "failure_classes": {
+      "type": "array",
+      "description": "The metric that matters. Rails whose failures produce the same observable state sit in one class; a class with more than one member is two faults nobody can tell apart. Counting 'rails with test points' instead reads well and hides exactly this.",
+      "items": {
+        "type": "object",
+        "required": ["tier", "rails", "ambiguous", "detail"],
+        "properties": {
+          "tier": {"type": "integer"},
+          "rails": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "ambiguous": {"type": "boolean"},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "resets": {
+      "type": "array",
+      "description": "Reported apart from the rails because the symptom differs: a reset released before its rails are up gives a powered, dead board, which looks nothing like a missing rail.",
+      "items": {
+        "type": "object",
+        "required": ["net", "gated_by", "status", "detail"],
+        "properties": {
+          "net": {"type": "string", "minLength": 1},
+          "gated_by": {"type": "array", "items": {"type": "string"}},
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "issue": {
+            "enum": ["RESET_UNOBSERVABLE", "RESET_RAIL_NOT_A_DECLARED_RAIL", "RAIL_UNOBSERVED"]
+          },
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "enable_edges": {
+      "type": "array",
+      "description": "Enable sources that are themselves invisible. Information rather than a failure: an enable is usually the output of an observable rail, and measuring that rail already says whether the gate opened.",
+      "items": {
+        "type": "object",
+        "required": ["rail", "enable_source", "issue", "detail"],
+        "properties": {
+          "rail": {"type": "string"},
+          "enable_source": {"type": "string"},
+          "issue": {"const": "ENABLE_EDGE_UNOBSERVED"},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "diagnosability": {
+      "type": "object",
+      "required": ["rails", "distinguishable_classes", "ambiguous_classes", "rails_proven", "rails_pg_only", "rails_unobserved"],
+      "description": "Both numbers are reported on purpose: '5 rails, 5 classes' and '5 rails, 2 classes' are very different boards, and a single coverage percentage makes them look similar.",
+      "properties": {
+        "rails": {"type": "integer", "minimum": 0},
+        "distinguishable_classes": {"type": "integer", "minimum": 0},
+        "ambiguous_classes": {"type": "integer", "minimum": 0},
+        "rails_proven": {"type": "integer", "minimum": 0},
+        "rails_pg_only": {"type": "integer", "minimum": 0},
+        "rails_unobserved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "findings": {"type": "array"},
+    "coverage": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

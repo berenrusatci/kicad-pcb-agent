@@ -1,0 +1,9 @@
+{
+  "delta_mm": 0.3,
+  "expected_failed_metrics": [
+    "U1_J2.review_compatibility_chord_edge_gap_mm.p50",
+    "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction"
+  ],
+  "net": "/USB_D_N",
+  "operation": "translate longest straight segment away from paired net"
+}

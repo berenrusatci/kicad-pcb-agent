@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/signal-compliance-masks/v1",
+  "title": "Differential channel compliance masks",
+  "description": "Frequency/dB masks for Sdd11 (return loss), Sdd21 (insertion loss) and Sdc21 (mode conversion). A mask is a normative threshold and therefore carries its provenance: an entry whose status is not CONFIRM must name the standard, revision, section, locator and access date. Issue #53.",
+  "type": "object",
+  "required": ["schema_version", "masks"],
+  "properties": {
+    "schema_version": {"const": "signal-compliance-masks/v1"},
+    "masks": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/mask"}
+    }
+  },
+  "$defs": {
+    "mask": {
+      "type": "object",
+      "required": ["interface", "status", "standard", "points"],
+      "properties": {
+        "interface": {"type": "string", "minLength": 1},
+        "status": {
+          "enum": ["ACTIVE", "CONFIRM", "FIXTURE"],
+          "description": "ACTIVE: sourced and usable as a gate. CONFIRM: the mask is not known yet; points MUST be empty and the gate reports NO_COVERAGE. FIXTURE: synthetic values for tests, never a compliance claim."
+        },
+        "standard": {"type": "string", "minLength": 1},
+        "revision": {"type": ["string", "null"]},
+        "section": {"type": ["string", "null"]},
+        "locator": {"type": ["string", "null"]},
+        "accessed": {"type": ["string", "null"]},
+        "needs": {"type": "string"},
+        "points": {
+          "type": "array",
+          "description": "Breakpoints, ascending in hz. Between them the mask is linear in dB; outside them it says nothing.",
+          "items": {
+            "type": "object",
+            "required": ["hz"],
+            "properties": {
+              "hz": {"type": "number", "exclusiveMinimum": 0},
+              "rl_db": {"type": "number"},
+              "il_db": {"type": "number"},
+              "sdc21_db": {"type": "number"}
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "$comment": "ACTIVE with an empty points array is refused by the loader rather than by this schema: JSON Schema can express the shape but not the reason, and the reason is the part a reader needs."
+}

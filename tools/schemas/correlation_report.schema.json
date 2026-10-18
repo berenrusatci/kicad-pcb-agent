@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/correlation-report/v1",
+  "title": "ProjectE measurement-versus-simulation correlation report",
+  "description": "Output of tools/scripts/sim/correlate.py. This is the first report in the bundle whose numbers could show a MODEL is wrong: everything upstream is self-consistent, and field_solver's bounded grid error says the numerics converged, not that the answer matches copper. Two fields carry the honesty load: 'de_embedded', which the caller declares and the tool never infers, and MEASUREMENT_ABSENT, which is the expected state until a board exists and means the model is unfalsified rather than confirmed.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "correlation-report/v1"
+    },
+    "tool": {
+      "const": "correlate"
+    },
+    "signoff": {
+      "const": false,
+      "description": "A small residual says the model and the measurement AGREE, not that either is right: a launch de-embedded to the wrong reference plane can move both."
+    },
+    "status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE"
+      ],
+      "description": "NO_COVERAGE covers both 'no measurement exists yet' and 'the two sweeps barely overlap'. Neither is a failure and neither is a pass."
+    },
+    "effective_status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE",
+        "ERROR"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "MEASUREMENT_ABSENT",
+          "INSUFFICIENT_OVERLAP",
+          "FIXTURE_NOT_DE_EMBEDDED",
+          "MAGNITUDE_RESIDUAL_EXCEEDED",
+          "DELAY_RESIDUAL_EXCEEDED"
+        ]
+      }
+    },
+    "measured": {
+      "type": "string"
+    },
+    "simulated": {
+      "type": "string"
+    },
+    "de_embedded": {
+      "type": "boolean",
+      "description": "DECLARED by the caller, never inferred. An un-de-embedded launch moves both magnitude and delay, and no amount of staring at a residual separates that from a wrong er - so when this is false the report emits FIXTURE_NOT_DE_EMBEDDED and the residual must be read as containing the fixture."
+    },
+    "port_out": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "port_in": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sufficient": {
+      "type": "boolean"
+    },
+    "overlap": {
+      "type": "object",
+      "description": "Only frequencies present in BOTH sweeps are compared. Interpolating one onto the other is not offered: resampling a measurement invents points that were never taken, and they then appear in the residual as if they had been.",
+      "properties": {
+        "shared_points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measured_points_in_band": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "simulated_points_in_band": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "band_hz": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "stop": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "start_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "stop_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "residuals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "metric",
+          "points",
+          "mean",
+          "mean_absolute",
+          "rms",
+          "worst",
+          "worst_frequency_hz"
+        ],
+        "properties": {
+          "metric": {
+            "enum": [
+              "magnitude_db",
+              "phase_deg",
+              "group_delay_ps"
+            ]
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "mean": {
+            "type": "number",
+            "description": "SIGNED, and reported separately from mean_absolute because the sign is the finding: a model uniformly 0.4 dB optimistic reads very differently from one 0.4 dB out in random directions."
+          },
+          "mean_absolute": {
+            "type": "number",
+            "minimum": 0
+          },
+          "rms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "worst": {
+            "type": "number"
+          },
+          "worst_frequency_hz": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "applied",
+        "verdict"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "worst_abs",
+              "limit",
+              "within"
+            ],
+            "properties": {
+              "worst_abs": {
+                "type": "number",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "number"
+              },
+              "within": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NO_COVERAGE"
+          ],
+          "description": "The ACCEPTANCE axis, separate from the top-level status. PASS/FAIL only when a criterion was actually applied to a trustworthy value; NO_COVERAGE when none was supplied. The top-level status answers 'did the computation complete', which is why an ungated run can be GREEN there and NO_COVERAGE here. A threshold nobody stated cannot have been met."
+        },
+        "verdict_reason": {
+          "type": "string",
+          "description": "Why the acceptance verdict is NO_COVERAGE. Present exactly when no criterion was applied or the value was not trustworthy."
+        }
+      },
+      "additionalProperties": false
+    },
+    "model_feedback": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The er_eff that would have reproduced the measured delay, since delay scales as sqrt(er_eff). A POINTER for investigation, not a correction to apply: the same delay error can equally be a wrong length or an un-de-embedded fixture, and this cannot tell them apart. Nothing applies it automatically.",
+      "properties": {
+        "assumed_er_eff": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "implied_er_eff": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "delay_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "change_percent": {
+          "type": "number"
+        },
+        "caveat": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unavailable": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "detail": {
+      "type": "string"
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": true
+}

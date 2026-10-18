@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/emc-rules-report/v1",
+  "title": "ProjectE EMI/EMC rule-engine report",
+  "description": "Output of scripts/emc_rules.py: the 3W, 20H and lambda/20 via-stitching targets plus the audit of every measurement supplied in the positional problem file. The source tool emitted an unversioned three-key blob and printed its self-test banner onto the same stdout stream.",
+  "type": "object",
+  "required": ["schema_version", "tool", "input", "model_class", "signoff", "status", "params", "targets", "checks", "summary"],
+  "properties": {
+    "schema_version": {"const": "emc-rules-report/v1"},
+    "tool": {"const": "emc_rules"},
+    "input": {"type": "string", "minLength": 1, "description": "Path of the positional JSON problem file."},
+    "model_class": {
+      "const": "design_heuristic",
+      "description": "3W/20H/lambda-20 are common EMC design heuristics, NOT numbers published by FCC or CISPR."
+    },
+    "signoff": {
+      "const": false,
+      "description": "Never a compliance result. Only an accredited EMC lab measurement can prove FCC Part 15 / CISPR 32 compliance."
+    },
+    "status": {
+      "enum": ["PASS", "FAIL", "NEEDS_HUMAN"],
+      "description": "FAIL > NEEDS_HUMAN (any NO_COVERAGE) > PASS."
+    },
+    "params": {
+      "type": "object",
+      "required": ["trace_width_mm", "dielectric_thickness_mm", "knee_frequency_ghz", "er_eff", "three_w_factor", "twenty_h_factor", "stitching_factor"],
+      "properties": {
+        "trace_width_mm": {"type": "number", "exclusiveMinimum": 0},
+        "dielectric_thickness_mm": {"type": "number", "exclusiveMinimum": 0},
+        "knee_frequency_ghz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "f_knee, derived from the signal edge rate - NOT the clock frequency."
+        },
+        "er_eff": {"type": "number", "exclusiveMinimum": 0},
+        "three_w_factor": {"type": "number", "minimum": 1},
+        "twenty_h_factor": {"type": "number", "minimum": 1},
+        "stitching_factor": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "targets": {
+      "type": "object",
+      "required": ["three_w", "twenty_h", "via_stitching"],
+      "properties": {
+        "three_w": {
+          "type": "object",
+          "required": ["trace_width_mm", "factor", "min_center_to_center_mm", "min_edge_to_edge_mm", "source_note"],
+          "properties": {
+            "trace_width_mm": {"type": "number"},
+            "factor": {"type": "number"},
+            "min_center_to_center_mm": {"type": "number"},
+            "min_edge_to_edge_mm": {
+              "type": "number",
+              "description": "centre-to-centre minus the trace width. Both definitions are emitted so the caller cannot confuse 3W with 2W."
+            },
+            "source_note": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "twenty_h": {
+          "type": "object",
+          "required": ["dielectric_thickness_mm", "factor", "min_setback_mm", "source_note"],
+          "properties": {
+            "dielectric_thickness_mm": {"type": "number"},
+            "factor": {"type": "number"},
+            "min_setback_mm": {"type": "number"},
+            "source_note": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "via_stitching": {
+          "type": "object",
+          "required": ["knee_frequency_ghz", "er_eff", "wavelength_mm", "factor", "max_pitch_mm", "source_note"],
+          "properties": {
+            "knee_frequency_ghz": {"type": "number"},
+            "er_eff": {"type": "number"},
+            "wavelength_mm": {"type": "number"},
+            "factor": {"type": "number"},
+            "max_pitch_mm": {"type": "number"},
+            "source_note": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"enum": ["emc_3w_crosstalk", "emc_20h_edge_radiation", "emc_via_stitching_pitch"]},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned == 0 MUST yield status NO_COVERAGE, never PASS. Unlike board_check_report/v1, the exit code here is 1 for NEEDS_HUMAN as well as FAIL: this tool has no legacy caller contract and 'nothing was measured' must not read as success."
+}

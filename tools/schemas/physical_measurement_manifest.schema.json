@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/physical-measurement-manifest/v1",
+  "title": "ProjectE calibrated physical measurement manifest (L3)",
+  "description": "Output of tools/scripts/lab/physical_measurement.py, the bundle's FIRST producer of evidence_origin=PHYSICAL_MEASUREMENT. Ten skills list L3 in assurance_loop and all eighteen declared evidence_origin=TOOL_REPORT, so every D row was acknowledged and none was owned. This manifest is the custody record around a measurement someone else took: which unit it is about, which instrument and calibration produced it, which setup makes it repeatable, which rule it is offered against, and whether it is admissible at all. It contains no threshold of its own - every limit arrives as an input carrying its authority, and a row whose limit did not arrive is NO_COVERAGE.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "gate_id",
+    "signoff",
+    "unit",
+    "evidence_origin",
+    "assurance_loop",
+    "rows",
+    "coverage",
+    "gate",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "physical-measurement-manifest/v1"},
+    "gate_id": {"const": "l3-bringup-karakterizasyon"},
+    "signoff": {
+      "const": false,
+      "description": "GREEN here is evidence-sufficiency closure for the rows whose limits arrived with an authority binding. It is not an accreditation, and it never converts a pre-compliance screen into formal EMC certification (emc-esd/SKILL.md §9)."
+    },
+    "generated_utc": {"type": "string"},
+    "tool": {
+      "type": "object",
+      "required": ["name", "version", "sha256", "argv"],
+      "properties": {
+        "name": {"const": "physical-measurement"},
+        "module": {"type": "string"},
+        "version": {"const": "physical-measurement/v1"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "exit_code": {"type": "integer"}
+      },
+      "additionalProperties": false
+    },
+    "unit": {
+      "$ref": "#/$defs/unit",
+      "description": "The accepted first article (ilk-urun-montaj-kabulu). Physical evidence not bound to a revision, digest, serial AND lot is evidence about no particular board."
+    },
+    "sources": {
+      "type": "object",
+      "description": "Hashes of the three inputs, so the manifest can be re-derived and a changed rule universe cannot masquerade as the one that was judged.",
+      "additionalProperties": true
+    },
+    "evidence_origin": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "PHYSICAL_MEASUREMENT",
+          "TOOL_REPORT",
+          "DESIGN_ARTIFACT",
+          "AUTHORITATIVE_SOURCE",
+          "LOCAL_POLICY"
+        ]
+      },
+      "$comment": "PHYSICAL_MEASUREMENT is the PRIMARY origin and must be present: per skills/_shared/coverage-gate.md, a skill that does not publish it cannot close an L3 row even while listing L3."
+    },
+    "assurance_loop": {
+      "type": "array",
+      "items": {"enum": ["L0", "L1", "L2", "L3"]},
+      "$comment": "L3 because it produces the physical evidence; L2 because RED opens a feedback edge to the rule's owner rather than a patch to the board."
+    },
+    "rows": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/row"}
+    },
+    "optional_rows": {"type": "array", "items": {"type": "string"}},
+    "coverage": {"$ref": "metric_coverage.schema.json"},
+    "exclusions": {
+      "type": "array",
+      "description": "Every required row that was NOT scanned, with the reason it was not. coverage.excluded is the length of this list; a gate cannot narrow its own scope silently.",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "verdict", "reason"],
+        "properties": {
+          "rule_id": {"type": "string"},
+          "verdict": {"$ref": "#/$defs/verdict"},
+          "reason_code": {"type": ["string", "null"]},
+          "reason": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "campaign": {
+      "type": "object",
+      "description": "The bring-up campaign is SERIAL for safety: power-safe bring-up, then functional observability, then thermal/SI/EMC characterisation. Probing a functional node on a board whose rails were never proven safe is how a bench destroys the only unit it has.",
+      "required": ["stages", "reached", "out_of_order"],
+      "properties": {
+        "stages": {
+          "type": "object",
+          "additionalProperties": {"enum": ["closed", "open", "no_rows"]},
+          "$comment": "Tri-state, not a boolean. 'no_rows' is not 'closed': a universe that declares nothing for a stage has not proved that stage safe, it has said nothing about it."
+        },
+        "reached": {"type": "string"},
+        "out_of_order": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule_id", "stage", "blocked_by"],
+            "properties": {
+              "rule_id": {"type": "string"},
+              "stage": {"type": "string"},
+              "blocked_by": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "domain_state": {
+      "type": "string",
+      "$comment": "The campaign stage reached. A DOMAIN state, deliberately NOT in gate.verdict: the closed verdict vocabulary is for gate decisions only, and gate.verdict is the binding one (coverage-gate.md, 'Verdict isim alani')."
+    },
+    "gate": {
+      "type": "object",
+      "required": ["applied", "verdict"],
+      "properties": {
+        "applied": {
+          "type": "boolean",
+          "description": "True when at least one required row arrived with a limit AND an authority binding. False means there was nothing this gate was entitled to judge against."
+        },
+        "verdict": {
+          "enum": ["GREEN", "RED", "NO_COVERAGE"],
+          "description": "The acceptance axis, computed with common/findings.acceptance_verdict and mapped onto the closed verdict vocabulary (PASS->GREEN, FAIL->RED). A threshold nobody stated cannot have been met, so an unlimited run is NO_COVERAGE here and never GREEN."
+        },
+        "verdict_reason": {"type": "string"},
+        "rows_green": {"type": "integer", "minimum": 0},
+        "rows_required": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "status": {"$ref": "#/$defs/verdict"},
+    "effective_status": {
+      "oneOf": [{"$ref": "#/$defs/verdict"}, {"const": "ERROR"}]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/reason_code"}
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "verdict": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE",
+        "INCONCLUSIVE",
+        "INVALID_METRIC",
+        "INVALID_SPARAM",
+        "INVALID_COVERAGE",
+        "CONFIRM",
+        "SCREEN_ONLY",
+        "STALE"
+      ],
+      "$comment": "A closed subset of skills/_shared/coverage-gate.md. This tool introduces NO new verdict; in particular there is no verdict meaning 'pre-compliance was good enough'."
+    },
+    "reason_code": {
+      "enum": [
+        "OWNER_NOT_DECLARED",
+        "LIMIT_NOT_SUPPLIED",
+        "LIMIT_UNITS_ABSENT",
+        "LIMIT_BOUNDS_ABSENT",
+        "LIMIT_AUTHORITY_MISSING",
+        "SELF_AUTHORED_LIMIT",
+        "RECORDS_ABSENT",
+        "NOT_PHYSICAL_EVIDENCE",
+        "RECORD_FIELD_MISSING",
+        "UNCALIBRATED",
+        "SETUP_NOT_REPRODUCIBLE",
+        "BOARD_HASH_MALFORMED",
+        "UNIT_BINDING_MISMATCH",
+        "MEASUREMENT_CLASS_MISMATCH",
+        "SPARAM_METADATA_INCOMPLETE",
+        "REFERENCE_IMPEDANCE_INVALID",
+        "RAW_DATA_DIGEST_MALFORMED",
+        "RAW_DATA_DIGEST_MISMATCH",
+        "RAW_DATA_ABSENT",
+        "RAW_DATA_NOT_VERIFIED",
+        "VALUE_NOT_NUMERIC",
+        "UNCERTAINTY_NOT_NUMERIC",
+        "UNIT_MISMATCH",
+        "COMPLIANCE_CLASS_UNKNOWN",
+        "REQUIRED_CLASS_UNKNOWN",
+        "BASELINE_ABSENT",
+        "PRE_COMPLIANCE_ONLY",
+        "EVIDENCE_CLASS_BELOW_REQUIREMENT",
+        "LAB_ARTIFACT_ABSENT",
+        "LIMIT_RED",
+        "LIMIT_INCONCLUSIVE",
+        "NO_MANDATORY_ROWS",
+        "INVALID_COVERAGE",
+        "ACCEPTED_UNIT_PRECONDITION_BROKEN",
+        "CAMPAIGN_ORDER_VIOLATION"
+      ]
+    },
+    "unit": {
+      "type": "object",
+      "required": ["board_revision", "board_hash", "serial", "lot", "accepted"],
+      "properties": {
+        "board_revision": {"type": "string", "minLength": 1},
+        "board_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "serial": {"type": "string", "minLength": 1},
+        "lot": {"type": "string", "minLength": 1},
+        "accepted": {
+          "type": "boolean",
+          "description": "The first-article acceptance is a PRECONDITION, not a note. Hunting electrical faults on a unit whose assembly was never accepted charges build defects to the design (rule-conflicts.md §9), so false forces the whole run RED."
+        },
+        "first_article": {
+          "type": "object",
+          "required": ["path", "sha256", "verdict"],
+          "properties": {
+            "path": {"type": "string"},
+            "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+            "verdict": {"type": ["string", "null"]},
+            "serial_release": {
+              "type": ["boolean", "null"],
+              "$comment": "first-article-report/v1 gate.serial_release, copied through. false is a veto here even if the verdict string is unfamiliar: the FAI gate owns that decision and this gate does not re-litigate it."
+            },
+            "package_binding": {
+              "type": ["string", "null"],
+              "$comment": "identity.package_binding, carried for provenance only. Its consequences (HASH_MISMATCH -> RED, REVISION_MISMATCH -> STALE, UNBOUND -> CONFIRM) are already decided by ilk-urun-montaj-kabulu and are not re-derived here."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "limit": {
+      "type": ["object", "null"],
+      "description": "ALWAYS an input, never derived here. null means the row could not be judged, and no amount of measurement changes that.",
+      "required": ["units", "authority"],
+      "properties": {
+        "units": {"type": "string", "minLength": 1},
+        "min": {"type": ["number", "null"]},
+        "max": {"type": ["number", "null"]},
+        "nominal": {"type": ["number", "null"]},
+        "authority": {"$ref": "#/$defs/authority"}
+      },
+      "additionalProperties": true
+    },
+    "authority": {
+      "type": ["object", "null"],
+      "required": ["owner_skill", "document_id", "locator"],
+      "properties": {
+        "owner_skill": {
+          "type": "string",
+          "minLength": 1,
+          "not": {"const": "l3-bringup-karakterizasyon"},
+          "$comment": "The skill that owns the limit. It may never be this skill: a gate that writes its own threshold and then measures against it is a tautology (rule-conflicts.md §9)."
+        },
+        "document_id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["string", "null"]},
+        "locator": {"type": "string", "minLength": 1},
+        "accessed": {"type": ["string", "null"]},
+        "snapshot_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    },
+    "row": {
+      "type": "object",
+      "required": ["rule_id", "owner", "required", "campaign_stage", "limit", "records", "verdict"],
+      "properties": {
+        "rule_id": {"type": "string", "minLength": 1},
+        "owner": {
+          "type": ["string", "null"],
+          "description": "The upstream skill that owns the rule. A RED row with no owner has nowhere to feed back to, which is why an ownerless rule is NO_COVERAGE."
+        },
+        "required": {"type": "boolean"},
+        "campaign_stage": {"enum": ["power_safe", "functional", "characterisation"]},
+        "measurement_class": {"type": ["string", "null"]},
+        "limit": {"$ref": "#/$defs/limit"},
+        "limit_authority": {"$ref": "#/$defs/authority"},
+        "records": {"type": "array", "items": {"$ref": "#/$defs/record_outcome"}},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "reason_code": {"type": ["string", "null"]},
+        "verdict_reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "record_outcome": {
+      "type": "object",
+      "required": ["measurement_id", "verdict"],
+      "properties": {
+        "measurement_id": {"type": ["string", "null"]},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "reason_code": {"type": ["string", "null"]},
+        "detail": {"type": "string"},
+        "value": {"type": ["number", "null"]},
+        "units": {"type": ["string", "null"]},
+        "uncertainty": {"type": ["number", "null"]},
+        "guard_band": {
+          "type": ["number", "null"],
+          "$comment": "The comparison is an INTERVAL of value +/- (uncertainty + guard_band). A margin inside that interval is INCONCLUSIVE, never PASS - highspeed-routing/SKILL.md §6."
+        },
+        "compliance_class": {"type": ["string", "null"], "enum": ["pre_compliance", "bench", "accredited_lab", null]},
+        "instrument": {
+          "type": "object",
+          "properties": {
+            "make": {"type": ["string", "null"]},
+            "model": {"type": ["string", "null"]},
+            "serial": {"type": ["string", "null"]},
+            "calibration_id": {"type": ["string", "null"]},
+            "calibration_date": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "raw_data_sha256": {"type": ["string", "null"]},
+        "baseline_id": {"type": ["string", "null"]},
+        "assessor": {"type": ["string", "null"]},
+        "timestamp": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  }
+}

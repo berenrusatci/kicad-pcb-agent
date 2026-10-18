@@ -1,0 +1,41 @@
+{
+  "schema_version": "fab-capabilities/v1",
+  "profile_id": null,
+  "vendor": null,
+  "service": null,
+  "process": null,
+  "revision_or_date": null,
+  "locator": null,
+  "accessed": null,
+  "snapshot_sha256": null,
+  "layers": null,
+  "finished_copper_um": null,
+  "stackup_id": null,
+  "finish": null,
+  "soldermask": {
+    "color": null,
+    "min_bridge_mm": null
+  },
+  "limits": {
+    "min_trace_mm": null,
+    "min_space_mm": null,
+    "min_finished_hole_mm": null,
+    "min_annular_ring_mm": null,
+    "max_aspect_ratio": null
+  },
+  "manufacturing_impedance_tolerance": {
+    "percent": null,
+    "service_or_order_option": null,
+    "scope": null,
+    "source_locator": null,
+    "status": "TBD"
+  },
+  "test_service_impedance_tolerance": {
+    "percent": null,
+    "service_or_order_option": null,
+    "scope": null,
+    "source_locator": null,
+    "status": "TBD"
+  },
+  "status": "TBD"
+}

@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+
+# Mutable per-session state: error memory + recovery logs. Deliberately NOT in
+# tools/, so it can never churn the hash-bound tool registry.
+var/
+
+# KiCad scratch/backup artifacts
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.bak
+*.lck
+~*.lck
+_netlist.net
+fp-info-cache
+
+# Local environment and secrets — never commit
+.env
+.env.*
+!.env.example
+*cookie*.json
+*storage_state*.json
+*.har
+
+# Tooling
+.venv/
+.pytest_cache/
+.obsidian/
+
+# Derived harness copy of skills/ (python tools/scripts/sync_skills.py)
+.claude/skills/

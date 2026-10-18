@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/testpoint-plan/v1",
+  "title": "ProjectE testpoint_plan + dft_coverage_receipt + test_access_rules",
+  "$comment": "CANONICAL ARTIFACT NAME: testpoint_plan.json. The former alias testpoint_map.json is retired; no producer or consumer may use it.",
+  "type": "object",
+  "required": ["schema_version", "phase", "testpoints", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "testpoint-plan/v1"},
+    "phase": {
+      "enum": ["early_schematic", "late_physical"],
+      "$comment": "early_schematic must never emit a physical coordinate/accessibility PASS: placement does not exist yet."
+    },
+    "board_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "test_access_rules": {"$ref": "#/$defs/test_access_rules"},
+    "testpoints": {"type": "array", "items": {"$ref": "#/$defs/testpoint"}},
+    "mandatory_scope": {"$ref": "#/$defs/mandatory_scope"},
+    "strategy": {"$ref": "#/$defs/strategy"},
+    "defect_universe": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/defect_class"},
+      "$comment": "Never sum these into one percentage. Each class carries its own denominator."
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "test_access_rules": {
+      "type": ["object", "null"],
+      "required": ["source", "source_date", "probe_class", "min_pad_diameter_mm", "min_pitch_mm", "min_edge_distance_mm"],
+      "properties": {
+        "source": {
+          "type": ["string", "null"],
+          "$comment": "The chosen test house probe guide. Without it, a micro-TP may NOT be counted as accessible."
+        },
+        "source_date": {"type": ["string", "null"], "format": "date"},
+        "probe_class": {"type": ["string", "null"]},
+        "min_pad_diameter_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "min_pitch_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "min_edge_distance_mm": {"type": ["number", "null"], "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "testpoint": {
+      "type": "object",
+      "required": ["tp_id", "net", "net_class", "method", "coverage_reason"],
+      "properties": {
+        "tp_id": {"type": "string", "minLength": 1},
+        "net": {"type": "string", "minLength": 1},
+        "net_class": {"enum": ["POWER", "DEBUG", "CLOCK", "STRAP", "ANALOG", "HIGH_SPEED", "OTHER"]},
+        "method": {
+          "enum": ["boundary_scan", "bed_of_nails", "flying_probe", "manual"],
+          "$comment": "A net without a declared method is NOT counted as covered."
+        },
+        "coverage_reason": {"type": "string", "minLength": 1},
+        "wired_not_floating_label": {
+          "type": ["boolean", "null"],
+          "$comment": "The TP pin must be joined to the net with a wire. A label hanging in space is not a connection."
+        },
+        "physical": {"$ref": "#/$defs/physical"},
+        "high_speed_stub_risk": {
+          "type": ["boolean", "null"],
+          "$comment": "No TP stub on a high-speed line. Use a micro-TP / probe pad; coverage drops and uncovered_reason is recorded."
+        },
+        "uncovered_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "physical": {
+      "type": ["object", "null"],
+      "required": ["side", "pad_diameter_mm", "pitch_mm", "edge_distance_mm", "nearest_gnd_mm", "probe_angle_ok", "courtyard_clear"],
+      "properties": {
+        "x_mm": {"type": ["number", "null"]},
+        "y_mm": {"type": ["number", "null"]},
+        "side": {"enum": ["top", "bottom", null]},
+        "pad_diameter_mm": {"type": ["number", "null"]},
+        "pitch_mm": {"type": ["number", "null"]},
+        "edge_distance_mm": {"type": ["number", "null"]},
+        "nearest_gnd_mm": {
+          "type": ["number", "null"],
+          "$comment": "Scope TPs need a GND TP within a few mm; otherwise the measurement measures the setup."
+        },
+        "probe_angle_ok": {"type": ["boolean", "null"]},
+        "courtyard_clear": {"type": ["boolean", "null"]},
+        "fixture_accessible": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "mandatory_scope": {
+      "type": ["object", "null"],
+      "required": ["power_rails", "swd", "uart", "boot_strap", "pmic_enable_pg"],
+      "properties": {
+        "power_rails": {"$ref": "#/$defs/scope_item"},
+        "swd": {"$ref": "#/$defs/scope_item"},
+        "uart": {"$ref": "#/$defs/scope_item"},
+        "boot_strap": {"$ref": "#/$defs/scope_item"},
+        "pmic_enable_pg": {"$ref": "#/$defs/scope_item"}
+      },
+      "additionalProperties": false,
+      "$comment": "Target stays 100% for power + debug nodes ONLY. Never generalise it into a board-wide '100% DFT coverage' claim."
+    },
+    "scope_item": {
+      "type": "object",
+      "required": ["required", "covered"],
+      "properties": {
+        "required": {"type": "integer", "minimum": 0},
+        "covered": {"type": "integer", "minimum": 0},
+        "missing": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "strategy": {
+      "type": ["object", "null"],
+      "required": ["selected", "rationale"],
+      "properties": {
+        "selected": {"enum": ["boundary_scan", "bed_of_nails", "flying_probe", "hybrid", "manual", null]},
+        "rationale": {"type": ["string", "null"]},
+        "volume": {"type": ["string", "null"]},
+        "nre_budget": {"type": ["string", "null"]},
+        "boundary_scan_gate": {
+          "type": ["object", "null"],
+          "required": ["bsdl_available", "chain_verified", "tap_accessible"],
+          "properties": {
+            "bsdl_available": {"type": ["boolean", "null"]},
+            "bsdl_source": {"type": ["string", "null"]},
+            "bsdl_revision": {"type": ["string", "null"]},
+            "silicon_revision": {"type": ["string", "null"]},
+            "idcode": {"type": ["string", "null"]},
+            "netlist_or_layout_hash": {"type": ["string", "null"]},
+            "chain_verified": {"type": ["boolean", "null"]},
+            "chain_verified_date": {"type": ["string", "null"], "format": "date"},
+            "tap_accessible": {"type": ["boolean", "null"]},
+            "ieee_1149_6_supported": {
+              "type": ["boolean", "null"],
+              "$comment": "AC-coupled / differential net coverage may only be claimed when the devices support 1149.6. Never fold 1149.6 coverage into the 1149.1 number."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "defect_class": {
+      "type": "object",
+      "required": ["class", "denominator", "covered", "primary_method", "fallback_method", "evidence_artifact"],
+      "properties": {
+        "class": {
+          "enum": [
+            "bare_board",
+            "assembled_interconnect",
+            "component_presence",
+            "component_orientation",
+            "component_value",
+            "powered_digital_structural",
+            "power_rail",
+            "analog_manual",
+            "functional"
+          ]
+        },
+        "denominator": {"type": "integer", "minimum": 0},
+        "covered": {"type": "integer", "minimum": 0},
+        "primary_method": {"enum": ["boundary_scan", "bed_of_nails", "flying_probe", "manual", "aoi", "xray", "functional", null]},
+        "fallback_method": {"enum": ["boundary_scan", "bed_of_nails", "flying_probe", "manual", "aoi", "xray", "functional", "none", null]},
+        "evidence_artifact": {"type": ["string", "null"]},
+        "uncovered_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

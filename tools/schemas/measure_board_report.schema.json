@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/measure-board-report/v1",
+  "title": "ProjectE board measurement report",
+  "description": "Output of scripts/board/measure_board.py, vendored from usb-hs-breakout/evidence/measure.py. Every number is read from the board file; nothing is taken from a document or a comment.",
+  "type": "object",
+  "required": ["schema_version", "tool", "board", "design", "params",
+               "measurements", "checks", "summary", "status"],
+  "properties": {
+    "schema_version": {"const": "measure-board-report/v1"},
+    "tool": {"const": "measure_board.py"},
+    "board": {"type": "string", "minLength": 1},
+    "design": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "description": "The board this report measured, with its digest. REQUIRED: an assertion cannot tie a measurement to an artifact it cannot hash, and an untieable report is SCREEN_ONLY no matter how good the number in it is.",
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "params": {"type": "object"},
+    "measurements": {
+      "type": "object",
+      "required": ["copper_layers", "board_size_mm", "net_length_mm",
+                   "pair_skew_mm", "coupling", "coupling_note"],
+      "properties": {
+        "coupling_note": {
+          "type": "string", "minLength": 1,
+          "description": "MUST state that coupling is a sampled chord distance and not a field solution."
+        }
+      }
+    },
+    "checks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/finding"}},
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]}
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "Track length uses GetLength(), which is ARC length and not the chord; PCB_ARC is included in the track filter. Both matter for skew and both were correct in the vendored original."
+}

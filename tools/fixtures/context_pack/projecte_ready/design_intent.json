@@ -1,0 +1,13 @@
+{
+  "schema_version": "pcb-design-intent/v1",
+  "goals": ["Prove an end-to-end context preflight and postflight fixture"],
+  "constraints": [
+    {
+      "id": "FIXTURE-C1",
+      "statement": "The fixture must remain read-only",
+      "source": "fixture contract"
+    }
+  ],
+  "non_goals": ["Make an electrical PCB design decision"],
+  "open_questions": []
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/keepout-zones/v1",
+  "title": "ProjectE keepout_zones contract (3D placement constraint)",
+  "type": "object",
+  "required": ["schema_version", "units", "global_max_height_mm", "datum", "zones", "status"],
+  "properties": {
+    "schema_version": {"const": "keepout-zones/v1"},
+    "units": {"const": "mm"},
+    "global_max_height_mm": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0,
+      "$comment": "Enclosure ceiling where no region-specific map exists. Null means NO_COVERAGE, not unlimited."
+    },
+    "mechanical_tolerance_mm": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "$comment": "Interference margin folded into every zone polygon (typically 0.1-0.2 mm)."
+    },
+    "clearance_margin_mm": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "$comment": "Z clearance kept between component body height and the ceiling (typically 0.2-0.5 mm)."
+    },
+    "datum": {"$ref": "#/$defs/datum"},
+    "step_provenance": {
+      "type": ["array", "null"],
+      "items": {"$ref": "#/$defs/step_provenance"}
+    },
+    "zones": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/zone"}
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "datum": {
+      "type": "object",
+      "required": ["datum_type", "datum_feature_ids", "datum_tolerance_mm", "tolerance_source"],
+      "properties": {
+        "datum_type": {"enum": ["edge", "hole", "mounting_fixture", "unknown"]},
+        "datum_feature_ids": {"type": "array", "items": {"type": "string"}},
+        "datum_tolerance_mm": {"type": ["number", "null"], "minimum": 0},
+        "tolerance_source": {
+          "enum": ["mechanical_drawing", "connector_datasheet", "derived_from_enclosure", "unknown"],
+          "$comment": "derived_from_enclosure can never yield PASS; it stays CONFIRM."
+        },
+        "connector_offset_from_datum": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "required": ["refdes", "dx_mm", "dy_mm"],
+            "properties": {
+              "refdes": {"type": "string"},
+              "dx_mm": {"type": "number"},
+              "dy_mm": {"type": "number"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "step_provenance": {
+      "type": "object",
+      "required": [
+        "step_source",
+        "step_revision",
+        "step_origin",
+        "step_units",
+        "body_only_or_mated_state",
+        "step_tolerance_assumption"
+      ],
+      "properties": {
+        "step_source": {"type": ["string", "null"]},
+        "step_revision": {"type": ["string", "null"]},
+        "step_origin": {"type": ["string", "null"]},
+        "step_units": {"enum": ["mm", "inch", "unknown", null]},
+        "body_only_or_mated_state": {"enum": ["body_only", "mated", "unknown", null]},
+        "step_tolerance_assumption": {"type": ["string", "null"]},
+        "bbox_cross_checked_against_2d_drawing": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "zone": {
+      "type": "object",
+      "required": ["zone_id", "kind", "side", "polygon_mm", "max_allowed_height_mm", "source"],
+      "properties": {
+        "zone_id": {"type": "string", "minLength": 1},
+        "kind": {
+          "enum": [
+            "mounting_hole",
+            "connector_body",
+            "connector_mating_corridor",
+            "connector_actuator_sweep",
+            "optical_axis",
+            "enclosure_ceiling",
+            "depanel_edge",
+            "other"
+          ],
+          "$comment": "A connector needs all three of connector_body, connector_mating_corridor and connector_actuator_sweep. Body alone makes the board unassemblable."
+        },
+        "owner_refdes": {"type": ["string", "null"]},
+        "side": {"enum": ["top", "bottom", "both"]},
+        "polygon_mm": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number"}
+          }
+        },
+        "max_allowed_height_mm": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "$comment": "0 means nothing may be placed. Null means unknown -> NO_COVERAGE for this zone, never unlimited."
+        },
+        "source": {
+          "enum": ["dxf", "step", "connector_datasheet", "local_policy", "manual"],
+          "$comment": "local_policy and manual zones are SCREEN_ONLY."
+        },
+        "note": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "A zone with max_allowed_height_mm = null is NO_COVERAGE and blocks the Faz 3 placement barrier. Missing 3D model must be emitted as NO_COVERAGE, never skipped."
+}

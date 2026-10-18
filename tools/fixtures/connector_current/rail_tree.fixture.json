@@ -1,0 +1,32 @@
+{
+  "schema_version": "rail-tree/v1",
+  "rails": {
+    "FIXTURE_5V_IN": {
+      "i_max_a": 2.4,
+      "ipc2221_screen_width_mm": 1.25,
+      "final_width_mm": 1.6,
+      "standard": "FIXTURE IPC-2221B screen",
+      "min_via_count": 4,
+      "max_ir_drop_mv": 50.0,
+      "c_eff_uf": 22.0
+    },
+    "FIXTURE_3V3": {
+      "i_max_a": 0.22,
+      "ipc2221_screen_width_mm": 0.2,
+      "final_width_mm": 0.35,
+      "standard": "FIXTURE IPC-2221B screen",
+      "min_via_count": 2,
+      "max_ir_drop_mv": 30.0,
+      "c_eff_uf": 4.7
+    },
+    "FIXTURE_1V8": {
+      "i_max_a": 0.4,
+      "ipc2221_screen_width_mm": 0.25,
+      "final_width_mm": 0.4,
+      "standard": "FIXTURE IPC-2221B screen",
+      "min_via_count": 2,
+      "max_ir_drop_mv": 20.0,
+      "c_eff_uf": 10.0
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/strap-binding/v1",
+  "title": "ProjectE strap_binding (strap / boot / mode / clock-select / reset-polarity source contract)",
+  "type": "object",
+  "required": ["schema_version", "straps", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "strap-binding/v1"},
+    "straps": {"type": "array", "items": {"$ref": "#/$defs/strap"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "LOCAL_POLICY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "strap": {
+      "type": "object",
+      "required": [
+        "strap_id",
+        "refdes",
+        "pin",
+        "net",
+        "function",
+        "intended_level",
+        "resolved_by",
+        "source",
+        "measurable",
+        "decision_status"
+      ],
+      "properties": {
+        "strap_id": {"type": "string", "minLength": 1},
+        "refdes": {"type": "string", "minLength": 1},
+        "pin": {"type": "string", "minLength": 1},
+        "net": {
+          "type": ["string", "null"],
+          "$comment": "Canonical net name. A generated Net-(...) name is ABSENT for rule-binding purposes (SKILL section 10)."
+        },
+        "function": {
+          "enum": ["boot", "mode", "clock_select", "reset_polarity", "address_select", "config", "unknown"]
+        },
+        "intended_level": {
+          "enum": ["high", "low", "float", "analog", "unknown"],
+          "$comment": "The level the AUTHORITATIVE SOURCE asks for, not the level the schematic happens to produce."
+        },
+        "resolved_by": {
+          "enum": ["pull_up", "pull_down", "hard_tie_rail", "hard_tie_gnd", "dnp_pair", "driven_by_host", "unresolved"]
+        },
+        "source": {"$ref": "#/$defs/source"},
+        "measurable": {"$ref": "#/$defs/measurable"},
+        "excluded_reason": {
+          "type": ["string", "null"],
+          "$comment": "Required whenever this row counts towards coverage.excluded. An unexplained exclusion is INVALID_COVERAGE/RED."
+        },
+        "decision_status": {"enum": ["TBD", "CONFIRM", "LOCAL_POLICY", "accepted", "rejected"]}
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": ["object", "null"],
+      "required": ["origin", "document_id", "revision", "locator", "accessed", "snapshot_sha256"],
+      "properties": {
+        "origin": {
+          "enum": ["authoritative_source", "local_policy", "unknown"],
+          "$comment": "local_policy is a repo default: it can never be a PASS, only LOCAL_POLICY."
+        },
+        "document_id": {"type": ["string", "null"]},
+        "revision": {
+          "type": ["string", "null"],
+          "$comment": "A vendor document without a revision and a date names a FAMILY of documents, not a document."
+        },
+        "locator": {
+          "type": ["string", "null"],
+          "$comment": "Table/section/page inside the document - not the document as a whole."
+        },
+        "accessed": {"type": ["string", "null"], "format": "date"},
+        "snapshot_sha256": {"type": ["string", "null"], "pattern": "^([0-9a-f]{64})?$"}
+      },
+      "additionalProperties": false
+    },
+    "measurable": {
+      "type": ["object", "null"],
+      "required": ["present", "testpoint_refdes"],
+      "properties": {
+        "present": {"type": ["boolean", "null"]},
+        "testpoint_refdes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "The only closing evidence for a strap is a measurement on the board (D/L3); a row with no test point cannot be closed."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "Declared from the configuration pin tables of parts.json - it cannot be derived from the netlist, because which pin is a strap is package information."
+        },
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned + excluded == eligible; scanned == 0 is NO_COVERAGE, never GREEN. A strap resolved from a repo default is LOCAL_POLICY, never a PASS."
+}

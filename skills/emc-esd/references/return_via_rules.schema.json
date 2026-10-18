@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/return-via-rules/v1",
+  "title": "ProjectE return_via_rules — per-netclass stitching thresholds, never one global number",
+  "type": "object",
+  "required": ["schema_version", "local_return_via", "edge_via_fence", "status"],
+  "properties": {
+    "schema_version": {"const": "return-via-rules/v1"},
+    "local_return_via": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/local_rule"},
+      "$comment": "Rule (1): the via connecting the entry and exit reference planes at a layer/reference change. Published thresholds span 1.27 mm (NXP i.MX 93) to 5.08 mm (TI TUSB564-Q1). Only 'closer is better' generalises."
+    },
+    "edge_via_fence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/fence_rule"},
+      "$comment": "Rule (2): plane-pair edge / RF region boundary. lambda/20 is a STARTING ESTIMATE, not a PASS/FAIL rule. No normative base standard exists."
+    },
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "local_rule": {
+      "type": "object",
+      "required": ["net_class", "max_distance_mm", "threshold_source", "source_locator"],
+      "properties": {
+        "net_class": {"type": "string", "minLength": 1},
+        "interface": {"type": ["string", "null"]},
+        "max_distance_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "threshold_source": {
+          "enum": ["interface_guide", "package_guide", "silicon_vendor_doc", "local_policy", "unknown"],
+          "$comment": "A threshold without a source must emit NO_COVERAGE. Never universalise one number across net classes."
+        },
+        "source_locator": {"type": ["string", "null"]},
+        "differential": {"type": ["boolean", "null"]},
+        "gssg_symmetry_required": {
+          "type": ["boolean", "null"],
+          "$comment": "Differential transitions need symmetric GSSG geometry relative to P/N, verified separately for mode conversion."
+        },
+        "measured_max_distance_mm": {"type": ["number", "null"]},
+        "verdict": {"enum": ["PASS", "FAIL", "CONFIRM", "NO_COVERAGE", null]}
+      },
+      "additionalProperties": false
+    },
+    "fence_rule": {
+      "type": "object",
+      "required": ["region", "f_knee_edge_ghz", "frequency_basis", "lambda_divisor", "spacing_mm", "labelled_as_estimate"],
+      "properties": {
+        "region": {"type": "string", "minLength": 1},
+        "f_knee_edge_ghz": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "0.35 / t_r. Derived from EDGE RATE, never from the clock frequency and never from f_nyquist."
+        },
+        "frequency_basis": {
+          "enum": ["f_knee_edge", "clock_frequency", "f_nyquist", "unknown"],
+          "$comment": "Only f_knee_edge is correct here. Any other basis is INVALID_METRIC for this rule."
+        },
+        "epsilon_eff": {"type": ["number", "null"]},
+        "lambda_divisor": {
+          "type": ["number", "null"],
+          "default": 20,
+          "$comment": "20 nominal, 10 as a loose upper bound."
+        },
+        "spacing_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "labelled_as_estimate": {
+          "const": true,
+          "$comment": "This value must always be reported as an estimate, never as a PASS/FAIL rule."
+        },
+        "measured_max_spacing_mm": {"type": ["number", "null"]},
+        "violations": {"type": ["integer", "null"], "minimum": 0},
+        "scanned": {"type": ["integer", "null"], "minimum": 0},
+        "verdict": {"enum": ["SCREEN_ONLY", "CONFIRM", "FAIL", "NO_COVERAGE", null]},
+        "escalation": {
+          "enum": ["3d_em", "measurement", "none_required", null],
+          "$comment": "If the region is critical, verify with 3D EM or measurement instead of trusting lambda/20."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "dfm_emc_check.py --stitch-max-mm applies a single global threshold and therefore conflates these two different physics. Feed it per-netclass values from this file."
+}

@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/cad-asset-qualification-report/v1",
+  "title": "ProjectE ECAD asset qualification — is this symbol+footprint pair the device the authoritative document describes?",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "mpn",
+    "package_code",
+    "source",
+    "assets",
+    "pin_universe",
+    "pad_universe",
+    "padmap",
+    "package",
+    "land_pattern",
+    "checks",
+    "coverage",
+    "gate"
+  ],
+  "properties": {
+    "schema_version": {"const": "cad-asset-qualification-report/v1"},
+    "tool": {"const": "cad_asset_qualification"},
+    "mpn": {
+      "type": ["string", "null"],
+      "$comment": "READ from the authoritative record. This report never selects an MPN — bom-lifecycle owns selection, lifecycle and alternates. A null caps the run at CONFIRM."
+    },
+    "package_code": {"type": ["string", "null"]},
+    "package_family": {"type": ["string", "null"]},
+    "manufacturer": {"type": ["string", "null"]},
+    "source": {"$ref": "#/$defs/source"},
+    "assets": {"$ref": "#/$defs/assets"},
+    "pin_universe": {"type": "array", "items": {"$ref": "#/$defs/pin"}},
+    "pad_universe": {"type": "array", "items": {"$ref": "#/$defs/pad"}},
+    "padmap": {"type": "array", "items": {"$ref": "#/$defs/padmap_entry"}},
+    "package": {"$ref": "#/$defs/package"},
+    "land_pattern": {"$ref": "#/$defs/land_pattern"},
+    "lifecycle": {"$ref": "#/$defs/lifecycle"},
+    "exceptions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/exception"},
+      "$comment": "ACCEPTED exceptions only. An accepted exception removes an item from the scanned population, so acceptance requires a reason AND a complete five-field provenance block of its own."
+    },
+    "refused_exceptions": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "A refused exception is never dropped. Its item stays scanned and the refusal adds a CONFIRM cap, so writing an unevidenced exception makes the report louder, never quieter."
+    },
+    "excluded_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "reason"],
+        "properties": {
+          "check": {"type": "string"},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "Deliberate, RECORDED scope exclusions passed to rollup_status. An excluded NO_COVERAGE is skipped; an excluded FAIL is not — a measured failure cannot be excluded after the fact."
+    },
+    "base_gate": {
+      "type": ["object", "null"],
+      "$comment": "cad_assets.check_pin_count's own Finding, verbatim, plus upstream_artifacts. Kept so a reader can see exactly what the count-only gate said underneath the semantic layer."
+    },
+    "checks": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "by_check": {"type": "object"},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {"type": ["integer", "null"]},
+      "$comment": "Violation COUNT per check; null when the check was NO_COVERAGE. Null on purpose: an unmeasured metric compared against a threshold of 0 would report a vacuous PASS."
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "summary": {"type": "object"},
+    "caps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["verdict", "reason"],
+        "properties": {
+          "verdict": {"enum": ["CONFIRM", "LOCAL_POLICY", "SCREEN_ONLY"]},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "A cap never opens a gate; it states how far from GREEN the run is and why. A cap NEVER softens a measured RED."
+    },
+    "stale_reasons": {"type": "array", "items": {"type": "string"}},
+    "registration": {
+      "type": ["object", "null"],
+      "$comment": "Present only when --register ran. cad_assets.register_assets raises PermissionError unless the verdict is GREEN; library registration happens through the tool, never by hand-patching the lib-tables."
+    },
+    "gate": {"$ref": "#/$defs/gate"}
+  },
+  "additionalProperties": false,
+  "$comment": "This report answers ONE question: does the candidate symbol+footprint pair represent the device and package the authoritative document specifies? It does NOT answer whether the part should have been chosen (bom-lifecycle), what it is wired to (sematik-erc), or whether the land pattern can be manufactured (dfm).",
+  "$defs": {
+    "provenance": {
+      "type": ["object", "null"],
+      "required": ["document_id", "revision", "locator", "accessed", "snapshot_sha256"],
+      "properties": {
+        "document_id": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "locator": {"type": ["string", "null"]},
+        "accessed": {"type": ["string", "null"]},
+        "snapshot_sha256": {"type": ["string", "null"]},
+        "source_url": {"type": ["string", "null"]},
+        "authored_by": {"type": ["string", "null"]},
+        "transcription_method": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true,
+      "$comment": "skills/_shared/coverage-gate.md, evidence_origin table, AUTHORITATIVE_SOURCE row. All five fields, or the record is a note and not a source: the run caps at CONFIRM and can never reach GREEN."
+    },
+    "source": {
+      "type": "object",
+      "required": ["provenance_complete", "provenance_missing"],
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "file_sha256": {"type": ["string", "null"]},
+        "schema_version": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance"},
+        "provenance_complete": {"type": "boolean"},
+        "provenance_missing": {"type": "array", "items": {"type": "string"}},
+        "snapshot": {
+          "type": "object",
+          "properties": {
+            "path": {"type": ["string", "null"]},
+            "sha256": {"type": ["string", "null"]},
+            "declared_sha256": {"type": ["string", "null"]},
+            "verified": {
+              "type": ["boolean", "null"],
+              "$comment": "null = the snapshot document was not supplied, so the declared digest was recorded but not checked. false = it was supplied and it does NOT match, which is STALE."
+            }
+          },
+          "additionalProperties": false
+        },
+        "read_error": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "assets": {
+      "type": "object",
+      "required": ["symbol", "footprint"],
+      "properties": {
+        "symbol": {"$ref": "#/$defs/asset"},
+        "footprint": {"$ref": "#/$defs/asset"}
+      },
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "sha256": {
+          "type": ["string", "null"],
+          "$comment": "null is LOUD, not absent: without a digest the verdict cannot be tied to the file it judged and anything resting on it is stale by default."
+        },
+        "read_error": {"type": ["string", "null"]},
+        "pin_count": {"type": ["integer", "null"], "minimum": 0},
+        "pad_count": {"type": ["integer", "null"], "minimum": 0},
+        "mechanical_pad_count": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "pin": {
+      "type": "object",
+      "required": ["number", "status"],
+      "properties": {
+        "number": {"type": "string", "minLength": 1},
+        "name": {"type": ["string", "null"]},
+        "function": {"type": ["string", "null"]},
+        "electrical_role": {"type": ["string", "null"]},
+        "symbol_name": {"type": ["string", "null"]},
+        "symbol_electrical_role": {"type": ["string", "null"]},
+        "status": {
+          "enum": ["matched", "mismatch", "missing_in_symbol", "missing_in_source", "excluded"]
+        },
+        "mismatch": {"type": "array", "items": {"type": "string"}},
+        "exclusion_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "The universe is the UNION of the authoritative numbers and the symbol's numbers, so an extra pin the datasheet never defines is as visible as a missing one. Names are compared EXACTLY after stripping whitespace — no case folding, no ~{overbar} rewriting, no alias table, because a normaliser is where a wrong pin quietly becomes a right one."
+    },
+    "pad": {
+      "type": "object",
+      "required": ["number", "status"],
+      "properties": {
+        "number": {"type": "string", "minLength": 1},
+        "type": {"type": ["string", "null"]},
+        "epad": {"type": "boolean"},
+        "footprint_type": {"type": ["string", "null"]},
+        "footprint_shape": {"type": ["string", "null"]},
+        "occurrences": {"type": "integer", "minimum": 0},
+        "status": {
+          "enum": ["matched", "mismatch", "missing_in_footprint", "missing_in_source", "excluded"]
+        },
+        "mismatch": {"type": "array", "items": {"type": "string"}},
+        "exclusion_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "Numberless mounting/mechanical pads are counted as excluded WITH the reason, never silently dropped and never compared against a pin table."
+    },
+    "padmap_entry": {
+      "type": "object",
+      "required": ["number", "in_symbol", "in_footprint", "status"],
+      "properties": {
+        "number": {"type": "string"},
+        "in_symbol": {"type": "boolean"},
+        "in_footprint": {"type": "boolean"},
+        "status": {"enum": ["matched", "missing_in_symbol", "missing_in_footprint", "excluded"]},
+        "exclusion_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "SET equality, not cardinality. A five-pad footprint numbered 1..5 beside a five-pin symbol numbered A1..A5 is two counts of five and zero matches."
+    },
+    "package": {
+      "type": "object",
+      "required": ["attributes"],
+      "properties": {
+        "package_code": {"type": ["string", "null"]},
+        "expected_footprint_name": {"type": ["string", "null"]},
+        "declared_dimensions": {"type": ["object", "null"]},
+        "measured": {
+          "type": ["object", "null"],
+          "properties": {
+            "footprint_name": {"type": ["string", "null"]},
+            "pad_span_x_mm": {"type": ["number", "null"]},
+            "pad_span_y_mm": {"type": ["number", "null"]},
+            "pad_centres_sampled": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false,
+          "$comment": "pad_span_* is the CENTRELINE span of pad centres, exposed pad excluded. Quoting it against a lead-tip extent from a datasheet would be comparing two different measurements; the receipt states the semantics in metric_semantics.distance_semantics."
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["attribute", "status"],
+            "properties": {
+              "attribute": {"enum": ["footprint_name", "pad_span_x_mm", "pad_span_y_mm"]},
+              "declared": {"type": ["string", "number", "null"]},
+              "measured": {"type": ["string", "number", "null"]},
+              "status": {"enum": ["matched", "mismatch", "excluded"]},
+              "mismatch": {"type": ["string", "null"]},
+              "exclusion_reason": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          },
+          "$comment": "An attribute the source does not state is EXCLUDED with a reason, never defaulted. No fallback tolerance, no assumed pitch, no 'typical' span. Every excluded attribute caps the run at CONFIRM: a land pattern table with no numbers in it cannot certify a footprint."
+        }
+      },
+      "additionalProperties": false
+    },
+    "land_pattern": {
+      "type": "object",
+      "required": ["source_type", "authoritative"],
+      "properties": {
+        "source_type": {
+          "type": ["string", "null"],
+          "$comment": "manufacturer | ipc_derived | local_library | vendor_ecad | none | unknown."
+        },
+        "document_id": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "derivation": {"type": ["string", "null"]},
+        "tolerance_mm": {"type": ["number", "null"]},
+        "authoritative": {"type": "boolean"}
+      },
+      "additionalProperties": false,
+      "$comment": "Only a manufacturer land pattern (with document_id and revision) leaves a run eligible for GREEN. A derived pattern WITH its derivation recorded is LOCAL_POLICY; a fallback with no derivation recorded is SCREEN_ONLY. Neither is a sign-off."
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "mpn": {"type": ["string", "null"]},
+        "state": {"type": ["string", "null"]},
+        "found_in_record": {"type": "boolean"},
+        "record_path": {"type": ["string", "null"]},
+        "reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "READ ONLY, from lifecycle_report.json. cad_assets.lifecycle_gate decides; this report only refuses to RELEASE an asset for a part that gate blocks. It never writes, infers or upgrades a lifecycle state."
+    },
+    "exception": {
+      "type": "object",
+      "required": ["scope", "item", "reason", "evidence"],
+      "properties": {
+        "scope": {"enum": ["pin", "pad", "package_attribute"]},
+        "item": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence": {"$ref": "#/$defs/provenance"},
+        "accepted": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"type": "string"},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array", "items": {"type": "string"}},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0},
+        "per_metric": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["eligible", "scanned", "excluded", "violations"],
+            "properties": {
+              "eligible": {"type": "integer", "minimum": 0},
+              "scanned": {"type": "integer", "minimum": 0},
+              "excluded": {"type": "integer", "minimum": 0},
+              "violations": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "scanned + excluded == eligible and violations <= scanned, per row AND in the total. The total is the SUM over metrics whose universes deliberately overlap (a pin number appears in the pin universe and in the pad map); the invariant holds per row, which is where it is enforceable. scanned = 0 is NO_COVERAGE, never GREEN."
+    },
+    "gate": {
+      "type": "object",
+      "required": ["verdict", "verdict_reasons", "signoff"],
+      "properties": {
+        "verdict": {
+          "enum": ["GREEN", "RED", "CONFIRM", "SCREEN_ONLY", "LOCAL_POLICY", "NO_COVERAGE", "STALE", "INVALID_COVERAGE"],
+          "$comment": "A SUBSET of the closed vocabulary in skills/_shared/coverage-gate.md. This tool adds no verdict. GREEN is reachable only when every universe was scanned against the authoritative source, nothing mismatched, and no cap applies — never from a sourceless default."
+        },
+        "verdict_reasons": {"type": "array", "items": {"type": "string"}},
+        "signoff": {"const": false},
+        "assurance_loop": {"type": "array", "items": {"type": "string"}},
+        "evidence_origin": {"type": "array", "items": {"type": "string"}},
+        "writes_board": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  }
+}

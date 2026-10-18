@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/assertion-report/v1",
+  "title": "ProjectE executable verification matrix report",
+  "description": "Output of tools/scripts/assert_matrix.py. The verification matrix already mapped every rule to a level, a tool, a loop and an action on failure - as prose, which is only as live as the last person who read it. This artifact is that mapping evaluated. It contains no measurement of its own: every assertion binds a claim to a LOCATION in a report some other tool produced, so the tool stays the single source of the measurement and this layer is the single source of the claim about it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "measures_nothing",
+    "assertion_set",
+    "assertions",
+    "syntax_errors",
+    "outcomes",
+    "establishes",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "assertion-report/v1"},
+    "tool": {"const": "assert_matrix"},
+    "status": {
+      "enum": ["GREEN", "RED", "NO_COVERAGE", "SCREEN_ONLY"],
+      "description": "RED > NO_COVERAGE > SCREEN_ONLY > GREEN. SCREEN_ONLY is not a new concept: the matrix already uses it in section 5 for tools whose output cannot be hash-bound. It ranks below NO_COVERAGE because not knowing is a stronger statement of ignorance than knowing without a binding."
+    },
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "SCREEN_ONLY", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {"const": "verification"},
+    "measures_nothing": {
+      "const": true,
+      "description": "Pinned true. Re-deriving an engineering quantity here would give the repo two answers to one question, which is what item #51 (one rule, three copies, two numbers) and #54 (two independent implementations) were both about."
+    },
+    "assertion_set": {"type": "string"},
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "rule", "level", "loop", "on_fail", "source", "executable", "establishes"],
+        "properties": {
+          "id": {"type": "string"},
+          "rule": {
+            "type": "string",
+            "description": "Copied verbatim from the matrix row. Matching is exact on normalised text and never fuzzy: a fuzzy match would re-point the assertion at a neighbouring row the moment somebody rewords one, and a rule silently checking the wrong thing is what this layer exists to prevent."
+          },
+          "level": {
+            "enum": ["A", "B", "C", "D"],
+            "description": "The matrix taxonomy, which decides what a PASS may claim. A/B must carry an executable predicate; one that does not is UNBACKED_CLAIM, meaning the matrix says the rule is file-measurable and nothing measures it."
+          },
+          "loop": {"enum": ["L0", "L1", "L2", "L3"]},
+          "on_fail": {
+            "type": "string",
+            "description": "The matrix's fifth column, finally read by a machine. A finding nobody knows how to act on is a finding that does not get acted on."
+          },
+          "source": {"type": "string"},
+          "executable": {"type": "boolean"},
+          "establishes": {"enum": ["measurement", "record_only", "physical_measurement", "nothing"]},
+          "operator": {
+            "enum": ["equals", "at_least", "at_most", "count_at_least", "count_at_most", "one_of", "is_true"],
+            "description": "A closed set. There is no expression escape hatch, because a rule that cannot be diffed cannot be reviewed."
+          },
+          "selector": {
+            "type": "string",
+            "description": "Dotted keys and numeric indices only. No wildcards: a wildcard reads as one assertion but covers a set whose size depends on the report, and the empty set compares vacuously true."
+          },
+          "tolerance": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Required for every magnitude comparison and may be 0 - the point is that a boundary policy was chosen rather than inherited from float arithmetic. (0.7-0.4)/2 is 0.1499999... and a 0.15 threshold has twice turned exactly-on-the-limit items into violations in this repo."
+          },
+          "units": {"type": "string"},
+          "units_selector": {
+            "type": "string",
+            "description": "Mandatory whenever units is declared. A tool's unit label can lie and no reader here can catch that; what this catches is an unlabelled number being compared against a labelled threshold."
+          },
+          "falsifier": {
+            "type": "object",
+            "required": ["operation", "path"],
+            "description": "The mutation that must flip this assertion to FAIL. Mandatory for every executable assertion: the matrix's own acceptance criteria refuse to call a checker live without positive AND negative fault injection.",
+            "properties": {
+              "operation": {"enum": ["set", "remove"]},
+              "path": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "syntax_errors": {
+      "type": "array",
+      "description": "Assertions that would not load. Collected rather than raised, so one malformed rule does not hide the state of the others - but still RED, because a rule that does not load is a rule nothing enforces. Every refusal happens at LOAD time: an assertion that only blows up when its evidence happens to be present is silently unenforced on every run where it is absent.",
+      "items": {"type": "object", "required": ["assertion", "issue"]}
+    },
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assertion", "rule", "level", "loop", "status", "establishes", "evidence_bound", "detail"],
+        "properties": {
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "reason": {
+            "type": "string",
+            "description": "PATH_ABSENT, STALE_EVIDENCE, EVIDENCE_MISSING, UNIT_MISMATCH, UNITS_UNDECLARED, TYPE_MISMATCH, MEASUREMENT_ABSENT, RECORD_INCOMPLETE. A selector that finds nothing is PATH_ABSENT and therefore NO_COVERAGE - never FAIL and never PASS, because a field that is not in the report means the tool did not measure it, and comparing null is how 0 == 0 once got reported as agreement."
+          },
+          "margin": {
+            "type": "number",
+            "description": "observed minus threshold, so an on-the-boundary comparison is visible instead of silent."
+          },
+          "evidence_bound": {
+            "type": "boolean",
+            "description": "False when the report carries no declared digest tying it to the artifact it measured. Not fatal, not free: a run whose passes all rest on unbound evidence is SCREEN_ONLY."
+          },
+          "on_fail": {
+            "type": "string",
+            "description": "Present only on FAIL. Carried through from the matrix row so the report says what to do, not just what broke."
+          }
+        }
+      }
+    },
+    "proofs": {
+      "type": "array",
+      "description": "Result of --prove: the declared fault injected into a copy of the evidence, requiring the assertion to catch it. Still passing is VACUOUS_ASSERTION - decoration rather than a check. Dropping to NO_COVERAGE is FALSIFIER_NO_COVERAGE: the injected fault destroyed the measurement instead of being caught by it, which is a quieter kind of useless and is what a 'remove' falsifier always produces.",
+      "items": {
+        "type": "object",
+        "required": ["assertion", "proven", "detail"],
+        "properties": {
+          "proven": {"type": "boolean"},
+          "reason": {"enum": ["VACUOUS_ASSERTION", "FALSIFIER_NO_COVERAGE", "PATH_ABSENT", "EVIDENCE_MISSING"]},
+          "mutated_status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]}
+        }
+      }
+    },
+    "establishes": {
+      "type": "object",
+      "required": ["measurement", "record_only", "physical_measurement"],
+      "description": "PASS counted by what it establishes. A run that is green on four filings and two measurements must not read like one that is green on six measurements, and a single PASS count makes those identical. The matrix calls dressing a level C document gate up as a level A measurement the most dangerous error in this repo: the line that reads 'checked' and measured nothing.",
+      "properties": {
+        "measurement": {"type": "integer", "minimum": 0},
+        "record_only": {"type": "integer", "minimum": 0},
+        "physical_measurement": {"type": "integer", "minimum": 0}
+      }
+    },
+    "matrix_coverage": {
+      "type": ["object", "null"],
+      "description": "Present when --matrix was given. The matrix stays the single source and is READ, never transcribed into a second file - transcription is how one rule became three copies with two different numbers. An unasserted rule is absence of coverage, not a violation; an orphan assertion IS a defect, because it passes forever and reads as coverage while enforcing nothing.",
+      "properties": {
+        "rules_parsed": {"type": "integer", "minimum": 0},
+        "matched": {"type": "array"},
+        "unasserted": {"type": "array"},
+        "orphan_assertions": {"type": "array"},
+        "parse_problems": {
+          "type": "array",
+          "description": "A table listing rules with no level column is reported here rather than skipped: the matrix's own first sentence is that a rule without a level is not a rule."
+        }
+      }
+    },
+    "findings": {"type": "array"},
+    "coverage": {"type": "object"}
+  }
+}

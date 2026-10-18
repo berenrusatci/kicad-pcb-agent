@@ -1,0 +1,24 @@
+{
+  "copied_utc": "2026-07-29T12:00:00Z",
+  "source_root": "aiplanlama/usb-hs-breakout/evidence",
+  "sources": [
+    {
+      "path": "22_usb_pair_metrics.py",
+      "sha256": "a2422a84bc14e2a0d19ec1ef670b3ae18732b8ec94a535db41075ad004b56db6"
+    },
+    {
+      "path": "23_verify_usb_pair_metrics.py",
+      "sha256": "5a13d681576074754ce2e71e7c4e218f27f99b678fc2eb7d1560712390e16001"
+    },
+    {
+      "path": "24_usb_pair_metrics_current.json",
+      "sha256": "c655fca9a43c1598855c9d2e752ec0a146fce191b948b0561e6158921afc2a1c"
+    },
+    {
+      "path": "25_usb_pair_receipt_current.json",
+      "sha256": "9560a68bdbb4724c7c96bbbf1c3c37cd4498a3daf60ba7eb3bd8594a8619a10c"
+    }
+  ],
+  "synthetic": false,
+  "transform": "Minimal non-sensitive fixture normalized to gate-receipt/v1 fields; measured values, review-2l profile and 0.30 mm rejected gap fault are preserved."
+}

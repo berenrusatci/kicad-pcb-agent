@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/esd-chain/v1",
+  "title": "ProjectE esd_chain — protection order per external interface",
+  "type": "object",
+  "required": ["schema_version", "interfaces", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "esd-chain/v1"},
+    "interfaces": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interface"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "LOCAL_POLICY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "interface": {
+      "type": "object",
+      "required": ["interface_id", "chain_order", "protection", "gnd_return", "target", "status"],
+      "properties": {
+        "interface_id": {"type": "string", "minLength": 1},
+        "connector_refdes": {"type": ["string", "null"]},
+        "chain_order": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"enum": ["connector", "tvs", "cmc", "series_element", "filter", "ic"]},
+          "$comment": "Canonical order: connector -> tvs -> (cmc) -> series_element -> ic. A wrong order in the schematic cannot be fixed by layout."
+        },
+        "flow_through_no_stub": {
+          "type": ["boolean", "null"],
+          "$comment": "The TVS must sit in the channel, not hang off a stub pad beside it."
+        },
+        "protection": {"type": "array", "items": {"$ref": "#/$defs/device"}},
+        "gnd_return": {"$ref": "#/$defs/gnd_return"},
+        "target": {"$ref": "#/$defs/target"},
+        "capacitance_budget": {"$ref": "#/$defs/capacitance_budget"},
+        "filter_area_reserved": {"type": ["boolean", "null"]},
+        "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "LOCAL_POLICY", "NO_COVERAGE", "RED", "GREEN"]}
+      },
+      "additionalProperties": false
+    },
+    "device": {
+      "type": "object",
+      "required": ["refdes", "kind", "mpn", "v_rwm_v", "v_clamp_at_ipp_v", "ipp_a", "clamp_data_source"],
+      "properties": {
+        "refdes": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["tvs", "cmc", "ferrite", "series_r", "esd_array", "other"]},
+        "mpn": {"type": ["string", "null"]},
+        "v_rwm_v": {"type": ["number", "null"]},
+        "v_br_v": {
+          "type": ["number", "null"],
+          "$comment": "V_BR alone is not a selection criterion. Clamping at the real current is."
+        },
+        "v_clamp_at_ipp_v": {"type": ["number", "null"]},
+        "ipp_a": {
+          "type": ["number", "null"],
+          "default": 16,
+          "$comment": "~16 A for IEC contact discharge. 8 kV contact is roughly a 30 A peak with 0.7-1 ns rise."
+        },
+        "clamp_data_source": {
+          "enum": ["tlp", "iec_waveform_measured", "datasheet_typ", "unknown", null],
+          "$comment": "TLP / dynamic resistance or manufacturer IEC-waveform clamp data. A datasheet typ is a screening value only."
+        },
+        "dynamic_resistance_ohm": {"type": ["number", "null"]},
+        "line_capacitance_pf": {"type": ["number", "null"]},
+        "package": {"type": ["string", "null"]},
+        "sparam_model_available": {"type": ["boolean", "null"]},
+        "dnp_default": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "gnd_return": {
+      "type": "object",
+      "required": ["via_count", "path_description"],
+      "properties": {
+        "via_count": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "$comment": "Must be >= 2. Most failures live in the GND return inductance, not in the TVS itself."
+        },
+        "path_description": {"type": ["string", "null"]},
+        "via_in_pad_used": {"type": ["boolean", "null"]},
+        "via_in_pad_fab_note": {
+          "type": ["string", "null"],
+          "$comment": "When ESD return conflicts with the via-in-pad DFM rule, ESD wins and the fab note carries IPC-4761 Type VII."
+        },
+        "trace_length_mm": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["ic_refdes", "ic_abs_max_v", "margin_ok", "origin"],
+      "properties": {
+        "ic_refdes": {"type": ["string", "null"]},
+        "ic_abs_max_v": {"type": ["number", "null"]},
+        "ic_hbm_rating_v": {
+          "type": ["number", "null"],
+          "$comment": "An HBM rating says NOTHING about system-level IEC robustness at the connector."
+        },
+        "margin_ok": {
+          "type": ["boolean", "null"],
+          "$comment": "V_clamp@I_PP < ic_abs_max_v. This is an ELIMINATION criterion, not a pass certificate."
+        },
+        "origin": {
+          "enum": ["product_standard", "local_policy", "unknown"],
+          "$comment": "local_policy (the 4/8 kV default) can never be promoted to D/L3 PASS."
+        },
+        "esd_test_profile_ref": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "capacitance_budget": {
+      "type": ["object", "null"],
+      "required": ["channel_budget_pf", "budget_source"],
+      "properties": {
+        "channel_budget_pf": {"type": ["number", "null"]},
+        "budget_source": {
+          "enum": ["interface_channel_budget", "universal_0p5pf_rule", "unknown", null],
+          "$comment": "universal_0p5pf_rule is NOT acceptable. Derive the limit from the interface's own channel/SI budget."
+        },
+        "total_line_capacitance_pf": {"type": ["number", "null"]},
+        "verified_against_channel": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "Every interface that leaves the board is eligible."
+        },
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

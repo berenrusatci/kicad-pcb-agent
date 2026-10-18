@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/connector-spec/v1",
+  "title": "ProjectE connector_spec contract",
+  "type": "object",
+  "required": ["schema_version", "connectors", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "connector-spec/v1"},
+    "connectors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/connector"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "connector": {
+      "type": "object",
+      "required": ["refdes", "mpn", "role", "mating", "current", "mechanical", "status"],
+      "properties": {
+        "refdes": {"type": "string", "minLength": 1},
+        "mpn": {"type": ["string", "null"]},
+        "role": {
+          "enum": ["measurement_only", "power_in", "power_out", "bidirectional", "signal_only", "unknown"],
+          "$comment": "Comes from interface_contract.json. If unknown, no TVS/PTC/eFuse may be selected."
+        },
+        "datasheet_locator": {"type": ["string", "null"]},
+        "mating": {"$ref": "#/$defs/mating"},
+        "current": {"$ref": "#/$defs/current"},
+        "mechanical": {"$ref": "#/$defs/mechanical"},
+        "fpc": {"$ref": "#/$defs/fpc"},
+        "shield": {"$ref": "#/$defs/shield"},
+        "hotplug": {"$ref": "#/$defs/hotplug"},
+        "highspeed": {"$ref": "#/$defs/highspeed"},
+        "fixture_record": {"$ref": "#/$defs/fixture_record"},
+        "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]},
+        "status_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "mating": {
+      "type": "object",
+      "required": ["cycles_required", "datasheet_cycles", "finish", "fab_note"],
+      "properties": {
+        "cycles_required": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "$comment": "Sum of production test + service + user cycles. If it exceeds datasheet_cycles the connector is RED."
+        },
+        "datasheet_cycles": {"type": ["integer", "null"], "minimum": 0},
+        "finish": {
+          "enum": ["ENIG", "hard_gold", "tin", "other", "unknown", null],
+          "$comment": "ENIG is not suitable for card-edge (gold finger) contacts; it wears in ~500-1000 cycles."
+        },
+        "gold_thickness_um": {"type": ["number", "null"], "minimum": 0},
+        "nickel_thickness_um": {"type": ["number", "null"], "minimum": 0},
+        "fab_note": {
+          "type": ["string", "null"],
+          "$comment": "Selective hard-gold plating is a separate fab process line item and must appear in the gerber fab note."
+        }
+      },
+      "additionalProperties": false
+    },
+    "current": {
+      "type": "object",
+      "required": ["rated_a_per_contact", "derated_a_per_contact", "derating_basis", "ambient_c", "rail_cross_check"],
+      "properties": {
+        "rated_a_per_contact": {"type": ["number", "null"], "minimum": 0},
+        "derated_a_per_contact": {"type": ["number", "null"], "minimum": 0},
+        "derating_basis": {
+          "enum": ["datasheet_curve", "adjacent_contact_screen", "unknown", null],
+          "$comment": "adjacent_contact_screen is LOCAL_POLICY: ~7% for 2 adjacent carriers, ~16% for 3, ~9% when spread out."
+        },
+        "adjacent_carrying_contacts": {"type": ["integer", "null"], "minimum": 0},
+        "ambient_c": {"type": ["number", "null"]},
+        "parallel_pins": {"type": ["integer", "null"], "minimum": 1},
+        "parallel_pin_assumption": {
+          "enum": ["N_times_I_forbidden", "margin_applied", "single_pin", null],
+          "$comment": "N x I_rated is a wrong upper bound: heated centre pins shed current to the outer pins."
+        },
+        "ground_return_pin_count": {"type": ["integer", "null"], "minimum": 0},
+        "rail_cross_check": {
+          "type": ["object", "null"],
+          "required": ["rail", "rail_worst_case_a", "connector_is_binding_constraint"],
+          "properties": {
+            "rail": {"type": "string"},
+            "rail_worst_case_a": {"type": ["number", "null"]},
+            "connector_is_binding_constraint": {"type": ["boolean", "null"]}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "mechanical": {
+      "type": "object",
+      "required": ["anchor_type", "anchor_count", "strain_relief_owner"],
+      "properties": {
+        "anchor_type": {"enum": ["solder_tab", "through_hole_leg", "smt_only", "screw", "unknown"]},
+        "anchor_count": {"type": ["integer", "null"], "minimum": 0},
+        "strain_relief_owner": {
+          "enum": ["board", "cable_assembly", "enclosure", "none", "unknown"],
+          "$comment": "A ZIF/FPC latch has no pull strength. Something else must restrain the cable."
+        },
+        "actuator_open_envelope_mm": {"type": ["number", "null"], "minimum": 0},
+        "actuator_close_envelope_mm": {"type": ["number", "null"], "minimum": 0},
+        "near_board_edge": {"type": ["boolean", "null"]},
+        "near_depanel_line": {"type": ["boolean", "null"]},
+        "ceramics_flex_crack_checked": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "fpc": {
+      "type": ["object", "null"],
+      "required": ["pitch_mm", "pitch_source", "pad_width_mm", "pad_length_mm", "contact_face", "fpc_thickness_mm", "fpc_insert_direction"],
+      "properties": {
+        "pitch_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "pitch_source": {
+          "enum": ["connector_datasheet", "derived", "constant_in_script", null],
+          "$comment": "Only connector_datasheet is acceptable. A 0.05 mm error accumulates across 60 positions."
+        },
+        "pad_width_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "pad_length_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "landing_pattern_source": {"enum": ["datasheet_copied", "derived", "unknown", null]},
+        "contact_face": {"enum": ["top", "bottom", "unknown", null]},
+        "fpc_thickness_mm": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "Connector specific. The '0.30 mm is always right' assumption is wrong; null means TBD."
+        },
+        "fpc_insert_direction": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "shield": {
+      "type": ["object", "null"],
+      "required": ["footprint_supports_all_three", "default_populated", "shell_via_count"],
+      "properties": {
+        "footprint_supports_all_three": {
+          "type": ["boolean", "null"],
+          "$comment": "The pad pair must accept 0R, capacitor and ferrite so EMC can compare with one variable."
+        },
+        "default_populated": {"enum": ["direct_gnd", "capacitor", "ferrite", "none", null]},
+        "shell_via_count": {"type": ["integer", "null"], "minimum": 0},
+        "chassis_signal_join_point": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "hotplug": {
+      "type": ["object", "null"],
+      "required": ["gnd_mate_first", "inrush_solution"],
+      "properties": {
+        "gnd_mate_first": {"type": ["boolean", "null"]},
+        "inrush_solution": {"enum": ["soft_start", "ntc", "efuse", "none_required", "unresolved", null]},
+        "keying_or_asymmetric_pinout": {"type": ["boolean", "null"]},
+        "pin1_marking_on_board_top": {"type": ["boolean", "null"]},
+        "esd_entry_point": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "highspeed": {
+      "type": ["object", "null"],
+      "properties": {
+        "pair_split_at_connector_pin": {"type": ["boolean", "null"]},
+        "gnd_pins_flanking_pair": {"type": ["boolean", "null"]},
+        "launch_discontinuity_in_channel_budget": {"type": ["boolean", "null"]},
+        "sparam_or_tdr_evidence_id": {"type": ["string", "null"]},
+        "verdict": {"enum": ["CONFIRM", "GEOMETRY_PRECHECK_PASS", "RED", "GREEN", null]}
+      },
+      "additionalProperties": false
+    },
+    "fixture_record": {
+      "type": ["object", "null"],
+      "required": [
+        "actual_connector_mpn",
+        "actual_fpc_thickness",
+        "datum_fixture_used",
+        "insert_remove_without_force",
+        "actuator_full_lock_visible",
+        "post_mate_clearance_margin"
+      ],
+      "properties": {
+        "actual_connector_mpn": {"type": ["string", "null"]},
+        "actual_fpc_thickness": {"type": ["number", "null"]},
+        "datum_fixture_used": {"type": ["string", "null"]},
+        "insert_remove_without_force": {"type": ["boolean", "null"]},
+        "actuator_full_lock_visible": {"type": ["boolean", "null"]},
+        "post_mate_clearance_margin": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "Half lock, damage or orientation problem is RED."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

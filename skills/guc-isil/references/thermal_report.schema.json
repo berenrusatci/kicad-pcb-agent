@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/thermal-report/v1",
+  "title": "ProjectE thermal_report contract",
+  "type": "object",
+  "required": ["schema_version", "ambient_c", "ambient_source", "regulators", "status"],
+  "properties": {
+    "schema_version": {"const": "thermal-report/v1"},
+    "ambient_c": {"type": "number"},
+    "ambient_source": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "Product scenario that fixes the ambient. Free text 'assumed' is not acceptable without a CONFIRM."
+    },
+    "enclosure_model": {
+      "type": ["object", "null"],
+      "properties": {
+        "kind": {"enum": ["none", "hand_calc", "cfd", "measured", null]},
+        "airflow_m_s": {"type": ["number", "null"]},
+        "correlation_evidence_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "regulators": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/regulator"}
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "SIM_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "regulator": {
+      "type": "object",
+      "required": [
+        "refdes",
+        "topology",
+        "vin_v",
+        "vout_v",
+        "iout_a",
+        "ploss_w",
+        "theta_ja_c_w",
+        "theta_ja_source",
+        "tj_est_c",
+        "verdict",
+        "decision"
+      ],
+      "properties": {
+        "refdes": {"type": "string", "minLength": 1},
+        "topology": {"enum": ["LDO", "SMPS", "load_switch", "other"]},
+        "vin_v": {"type": ["number", "null"]},
+        "vout_v": {"type": ["number", "null"]},
+        "iout_a": {"type": ["number", "null"]},
+        "ploss_w": {"type": ["number", "null"]},
+        "theta_ja_c_w": {"type": ["number", "null"]},
+        "theta_ja_source": {
+          "type": ["string", "null"],
+          "$comment": "MUST name the JEDEC board (1s0p / 2s2p) the value belongs to."
+        },
+        "jedec_board": {"enum": ["1s0p", "2s2p", "unknown", null]},
+        "psi_jt_c_w": {"type": ["number", "null"]},
+        "theta_jb_c_w": {"type": ["number", "null"]},
+        "tj_est_c": {"type": ["number", "null"]},
+        "tj_limit_c": {"type": ["number", "null"]},
+        "verdict": {
+          "enum": ["SCREEN_ONLY", "SIM_ONLY", "CONFIRM", "TBD", "NO_COVERAGE", "RED", "GREEN"],
+          "$comment": "Tj = Ta + P*theta_ja alone can never be GREEN; it is SCREEN_ONLY."
+        },
+        "decision": {"enum": ["KEEP_LDO", "SWITCH_TO_SMPS", "TBD", "CONFIRM"]},
+        "decision_reason": {"type": ["string", "null"]},
+        "thermal_via_note": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "Tj from datasheet theta_ja is a screening result only. Promotion to PASS requires psi_jt/theta_jb with a recorded measurement point, or a correlated enclosure model (L3)."
+}

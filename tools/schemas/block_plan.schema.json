@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/block-plan/v1",
+  "title": "ProjectE parametric block plan",
+  "description": "Output of tools/scripts/block_catalog.py. Architecture decisions were already being produced and nothing read them; an unread decision drifts away from the design silently, because no check was ever pointed at it. This artifact is the reader: it instantiates the blocks a decision implies AND carries the verification of each against a netlist, so emission and checking come from one record rather than two documents somebody has to keep in sync.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "emits_schematic",
+    "decision_source",
+    "instances",
+    "refusals",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "block-plan/v1"},
+    "tool": {"const": "block_catalog"},
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {"const": "early_schematic"},
+    "emits_schematic": {
+      "const": false,
+      "description": "Declares blocks; emits no schematic and no part numbers. Schematics here are generated from pin tables, so an edit made behind the generator is erased by the next build. Choosing an MPN needs stock, lifecycle and package inputs that are not visible at this phase."
+    },
+    "decision_source": {"type": "string"},
+    "netlist": {
+      "type": ["string", "null"],
+      "description": "null means nothing was checked. Verification is then NO_COVERAGE, never GREEN: the absence of a check is not evidence that the design matches."
+    },
+    "instances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["block", "params", "emitted", "verification"],
+        "properties": {
+          "block": {"type": "string"},
+          "params": {
+            "type": "object",
+            "description": "Fully resolved. Every required parameter came from the caller; nothing here was defaulted by the catalogue, because an invented value is read later as one an engineer chose."
+          },
+          "emitted": {
+            "type": "object",
+            "required": ["components", "nets", "rules"],
+            "properties": {
+              "components": {
+                "type": "array",
+                "description": "Component ROLES with constraints, never MPNs.",
+                "items": {
+                  "type": "object",
+                  "required": ["role"],
+                  "properties": {"role": {"type": "string"}}
+                }
+              },
+              "nets": {"type": "array", "items": {"type": "string"}},
+              "rules": {"type": "array"},
+              "assertions": {"type": "array"}
+            }
+          },
+          "verification": {
+            "type": "object",
+            "required": ["outcome", "detail"],
+            "properties": {
+              "outcome": {
+                "enum": ["present", "absent", "unverifiable"],
+                "description": "Three-valued on purpose. 'unverifiable' is not a rounding of the other two: a template with no verification method, or a run with no netlist, has established nothing, and folding that into 'present' turns a missing check into evidence of correctness."
+              },
+              "detail": {"type": "string"},
+              "found": {"type": "array"},
+              "expected_at_least": {"type": "integer"},
+              "missing_nets": {"type": "array", "items": {"type": "string"}},
+              "unbindable_nets": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Nets that EXIST but carry generated names. This is the interesting failure: the conductor is there, so a checker that only asks 'is the net present' passes, while the netclass or .kicad_dru rule meant for it has nothing to bind to. The name is also unstable - it derives from a reference designator, so renumbering that component renames the net and silently unbinds any rule that had been attached."
+              },
+              "generated_name_nets": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Conductors the designer did not name. Kept separate from declared no-connects, which are intentional and would otherwise bury the real cases."
+              }
+            }
+          }
+        }
+      }
+    },
+    "refusals": {
+      "type": "array",
+      "description": "Blocks that could not be instantiated. Recorded rather than raised, so one unbuildable block does not hide the state of the others.",
+      "items": {
+        "type": "object",
+        "required": ["block", "issue"],
+        "properties": {
+          "block": {"type": "string"},
+          "issue": {"type": "string"},
+          "missing": {"type": "array", "items": {"type": "string"}},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "findings": {"type": "array"},
+    "coverage": {"type": "object"}
+  }
+}

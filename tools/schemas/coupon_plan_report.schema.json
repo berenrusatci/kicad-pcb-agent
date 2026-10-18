@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/coupon-plan-report/v1",
+  "title": "ProjectE impedance test-coupon plan",
+  "description": "Output of tools/scripts/coupon_plan.py. 'phase' is pinned to pre_gerber because that is the whole point: correlating simulation against measurement happens after fabrication, but the decision that makes it possible - putting a coupon on the panel - happens before. Miss it and the board returns unmeasurable, and the only remedy is another fab cycle.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "tdr",
+    "requirements",
+    "coupons",
+    "coverage",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "coupon-plan-report/v1"},
+    "tool": {"const": "coupon_plan"},
+    "signoff": {
+      "const": false,
+      "description": "Plans the coupon; does not lay it out, place it on the panel or emit Gerber."
+    },
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {
+      "type": "array",
+      "items": {"enum": ["CLASS_WITHOUT_COUPON", "COUPON_TOO_SHORT"]}
+    },
+    "phase": {"const": "pre_gerber"},
+    "tdr": {
+      "type": "object",
+      "required": ["rise_time_ps", "resolution_multiple"],
+      "properties": {
+        "rise_time_ps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "REQUIRED input, never defaulted. A 20 ps head and a 200 ps head differ by 10x in the coupon length they need, and a coupon that is too short does not fail loudly - it reports a plausible impedance measured on a transition."
+        },
+        "resolution_multiple": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Settled line required, in resolution lengths. One is the minimum for a plateau to exist; the default of two gives a readable one. A geometric argument, not a standard's number, so it is reported rather than buried."
+        }
+      },
+      "additionalProperties": false
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "structure", "target_ohm", "w_mm", "er", "h_mm"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "structure": {"enum": ["microstrip", "coupled-microstrip",
+                                 "stripline", "coupled-stripline"]},
+          "target_ohm": {"type": "number", "exclusiveMinimum": 0},
+          "tolerance_percent": {"type": "number", "exclusiveMinimum": 0},
+          "layer": {"type": "string"},
+          "w_mm": {"type": "number", "exclusiveMinimum": 0},
+          "s_mm": {"type": "number", "exclusiveMinimum": 0},
+          "t_mm": {"type": "number", "exclusiveMinimum": 0},
+          "h_mm": {"type": "number", "exclusiveMinimum": 0},
+          "er": {"type": "number", "exclusiveMinimum": 0},
+          "nets": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "coupons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["impedance_class", "structure", "er_eff",
+                     "er_eff_source", "minimum_length_mm",
+                     "planned_length_mm", "long_enough"],
+        "properties": {
+          "impedance_class": {"type": "string", "minLength": 1},
+          "structure": {"type": "string"},
+          "layer": {"type": "string"},
+          "target_ohm": {"type": "number", "exclusiveMinimum": 0},
+          "tolerance_percent": {"type": "number"},
+          "geometry_mm": {"type": "object", "additionalProperties": {"type": "number"}},
+          "er": {"type": "number", "exclusiveMinimum": 0},
+          "er_eff": {"type": "number", "exclusiveMinimum": 0},
+          "er_eff_source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Solved or stated, and which. It is never defaulted: er_eff is nowhere near er for a microstrip, so a default would silently set every coupon length."
+          },
+          "tdr": {
+            "type": "object",
+            "properties": {
+              "rise_time_ps": {"type": "number", "exclusiveMinimum": 0},
+              "resolution_mm": {"type": "number", "exclusiveMinimum": 0},
+              "resolution_multiple": {"type": "number", "exclusiveMinimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "minimum_length_mm": {"type": "number", "exclusiveMinimum": 0},
+          "planned_length_mm": {"type": "number", "exclusiveMinimum": 0},
+          "long_enough": {"type": "boolean"},
+          "launch_note": {"type": "string"},
+          "warnings": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["required_classes", "missing_classes",
+                   "too_short_classes", "covered"],
+      "description": "An uncovered class is the failure this step exists to prevent: the board is fabricated and the one measurement that would have validated the stackup cannot be taken.",
+      "properties": {
+        "required_classes": {"type": "array", "items": {"type": "string"}},
+        "planned_classes": {"type": "array", "items": {"type": "string"}},
+        "missing_classes": {"type": "array", "items": {"type": "string"}},
+        "too_short_classes": {"type": "array", "items": {"type": "string"}},
+        "covered": {"type": "boolean"},
+        "coverage_fraction": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "total_coupon_length_mm": {"type": "number", "minimum": 0},
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": true
+}

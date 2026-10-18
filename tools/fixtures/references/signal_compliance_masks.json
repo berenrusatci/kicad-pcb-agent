@@ -1,0 +1,61 @@
+{
+  "schema_version": "signal-compliance-masks/v1",
+  "$comment": "Frequency/dB masks for differential channel compliance. READ THIS BEFORE ADDING A MASK. A mask is a normative threshold, so it lands under the promotion rule in docs/tool-inventory.md section 5: it needs a primary source (standard + revision), a locator, an access date, and a project-profile binding. Until those exist the interface stays status=CONFIRM with an EMPTY points array, and the gate reports NO_COVERAGE for it. That is the correct answer - a compliance gate that draws its own mask has certified nothing. This is issue #53 and it is blocked on documents, not on code: the code below is finished and the masks are not.",
+  "$units": {
+    "hz": "frequency of the breakpoint",
+    "rl_db": "return loss CEILING for Sdd11 - measured value above this fails",
+    "il_db": "insertion loss FLOOR for Sdd21 - measured value below this fails",
+    "sdc21_db": "mode conversion CEILING for Sdc21 - measured value above this fails"
+  },
+  "$interpolation": "Piecewise linear in dB between adjacent breakpoints. OUTSIDE the first and last breakpoint the mask says nothing and the tool reports the uncovered band rather than extrapolating: a mask extended past its own endpoints is a mask nobody wrote.",
+  "masks": {
+    "fixture-symmetric-3ghz": {
+      "interface": "TEST FIXTURE",
+      "status": "FIXTURE",
+      "standard": "none - synthetic values for unit tests",
+      "revision": "n/a",
+      "section": "n/a",
+      "locator": "tools/fixtures/references/signal_compliance_masks.json",
+      "accessed": "2026-08-09",
+      "$comment": "NOT a compliance mask. It exists so the mask machinery can be tested without waiting for a standard, and its numbers are round on purpose so nobody mistakes them for measured limits. Never cite this entry in a report that claims compliance.",
+      "points": [
+        {"hz": 1.0e8, "rl_db": -10.0, "il_db": -1.0, "sdc21_db": -20.0},
+        {"hz": 1.5e9, "rl_db": -10.0, "il_db": -3.0, "sdc21_db": -20.0},
+        {"hz": 3.0e9, "rl_db": -8.0, "il_db": -6.0, "sdc21_db": -18.0}
+      ]
+    },
+    "mipi-csi2-dphy": {
+      "interface": "MIPI CSI-2 over D-PHY",
+      "status": "CONFIRM",
+      "standard": "MIPI Alliance Specification for D-PHY",
+      "revision": null,
+      "section": null,
+      "locator": null,
+      "accessed": null,
+      "needs": "The D-PHY specification is a MIPI Alliance member document and is not in this repository. Required before this mask can be filled: the revision in use, the clause carrying the channel return/insertion loss limits, and the lane rate the limits are stated at. The project's own lane rate (see the interface contract) decides which of the specification's cases applies.",
+      "points": []
+    },
+    "usb3-gen1": {
+      "interface": "USB 3.2 Gen 1 (5 GT/s)",
+      "status": "CONFIRM",
+      "standard": "USB 3.2 Specification",
+      "revision": null,
+      "section": null,
+      "locator": null,
+      "accessed": null,
+      "needs": "Required before filling: specification revision, the channel/cable-assembly clause the mask is taken from, and whether the limit applies at the connector or at the die. A mask copied without its reference plane is a mask measured somewhere else.",
+      "points": []
+    },
+    "pcie-gen3": {
+      "interface": "PCI Express 3.0 (8 GT/s)",
+      "status": "CONFIRM",
+      "standard": "PCI Express Base Specification",
+      "revision": null,
+      "section": null,
+      "locator": null,
+      "accessed": null,
+      "needs": "Required before filling: base specification revision, the clause carrying the channel loss budget, and the reference package/board split the budget assumes. PCIe states a channel budget rather than a single board mask, so the board's share is a project decision and not a transcription.",
+      "points": []
+    }
+  }
+}

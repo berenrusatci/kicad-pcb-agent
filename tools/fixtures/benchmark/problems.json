@@ -1,0 +1,230 @@
+{
+  "schema_version": "pcb-benchmark-problems/v1",
+  "description": "The fixed problem set. Every entry is a real invocation with a DECLARED expected outcome, so a change in behaviour shows up as a changed pass rate rather than as a passing test that no longer means what it did. Tools are named by their registry name and the locator is resolved from config/tool_registry.json, so an unregistered tool cannot be benchmarked.",
+  "note": "expect=GREEN means the tool must reach its own GREEN verdict; RED means it must correctly REFUSE. A problem whose dependency is absent scores NO_COVERAGE and is excluded from the pass rate, never counted as a failure - otherwise the number measures what is installed.",
+  "problems": [
+    {
+      "id": "field-microstrip-nominal",
+      "tool": "field-solver",
+      "category": "field-solve",
+      "argv": ["microstrip", "--w", "0.2", "--h", "0.1", "--max-nodes", "40000"],
+      "expect": "GREEN",
+      "note": "A single-ended solve must produce an answer."
+    },
+    {
+      "id": "field-coax-against-analytic",
+      "tool": "field-solver",
+      "category": "field-solve",
+      "argv": ["coax", "--a", "0.5", "--b", "1.5", "--er", "4.3", "--max-nodes", "40000"],
+      "expect": "GREEN",
+      "note": "The geometry whose answer is exact; the self-test asserts the deviation."
+    },
+    {
+      "id": "field-coupled-pair",
+      "tool": "field-solver",
+      "category": "field-solve",
+      "argv": ["coupled-microstrip", "--w", "0.1", "--s", "0.15", "--h", "0.1", "--max-nodes", "60000"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "field-impossible-target-must-refuse",
+      "tool": "field-solver",
+      "category": "field-solve",
+      "argv": ["microstrip", "--w", "0.2", "--h", "0.1", "--max-nodes", "40000", "--target", "500", "--tolerance-percent", "1"],
+      "expect": "RED",
+      "note": "FAULT INJECTION: a 500 ohm target on a 45 ohm line must FAIL. A problem set of only happy paths cannot tell a working gate from a gate wired to always pass."
+    },
+    {
+      "id": "field-grid-ceiling-must-refuse",
+      "tool": "field-solver",
+      "category": "field-solve",
+      "argv": ["microstrip", "--w", "0.2", "--h", "0.1", "--refine", "--max-nodes", "200000", "--max-grid-error-percent", "0.0000001"],
+      "expect": "NO_COVERAGE",
+      "note": "An unmeetable grid-error ceiling must make the tool refuse to answer rather than round down.",
+      "timeout_s": 600
+    },
+    {
+      "id": "field-self-test",
+      "tool": "field-solver",
+      "category": "contract",
+      "argv": ["--self-test"],
+      "expect": "GREEN",
+      "timeout_s": 600
+    },
+    {
+      "id": "zdiff-closed-form",
+      "tool": "zdiff-solver",
+      "category": "field-solve",
+      "argv": ["90"],
+      "expect": "GREEN",
+      "note": "The screening solver the field solver now reports alongside."
+    },
+    {
+      "id": "zdiff-missing-target-is-an-error",
+      "tool": "zdiff-solver",
+      "category": "contract",
+      "argv": ["--er", "4.3"],
+      "expect": "ERROR",
+      "note": "It used to print 'self-tests completed' and exit 0 with no target. A missing required argument is exit 2 / ERROR, not a verdict."
+    },
+    {
+      "id": "monte-carlo-self-test",
+      "tool": "monte-carlo",
+      "category": "statistics",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "sparam-self-test",
+      "tool": "sparam",
+      "category": "s-parameter",
+      "argv": ["--self-test"],
+      "expect": "GREEN",
+      "note": "Carries the measured se2gmm port convention and the closed-form skew check."
+    },
+    {
+      "id": "sparam-synthesise-line",
+      "tool": "sparam",
+      "category": "s-parameter",
+      "argv": ["--line", "--z0", "50", "--er-eff", "3.1", "--length-mm", "100", "--points", "21"],
+      "expect": "GREEN",
+      "note": "A lossless matched line must pass the default insertion-loss limit."
+    },
+    {
+      "id": "sparam-lossy-line-must-fail",
+      "tool": "sparam",
+      "category": "s-parameter",
+      "argv": ["--line", "--z0", "50", "--er-eff", "3.1", "--length-mm", "400", "--tan-delta", "0.02", "--points", "21", "--il-limit-db", "-1"],
+      "expect": "RED",
+      "note": "FAULT INJECTION: a long lossy line must breach a -1 dB budget."
+    },
+    {
+      "id": "eye-self-test",
+      "tool": "eye",
+      "category": "channel",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "ipc-trace-width-self-test",
+      "tool": "ipc-trace-width",
+      "category": "ipc",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "ipc-clearance-self-test",
+      "tool": "ipc-clearance",
+      "category": "ipc",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "ipc-via-current-self-test",
+      "tool": "ipc-via-current",
+      "category": "ipc",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "ipc-fab-class-self-test",
+      "tool": "ipc-fab-class",
+      "category": "ipc",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "crosstalk-thinning-self-test",
+      "tool": "crosstalk-thinning",
+      "category": "signal-integrity",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "stackup-plan-self-test",
+      "tool": "stackup-plan",
+      "category": "stackup",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "emc-rules-self-test",
+      "tool": "emc-rules",
+      "category": "emc",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "dru-emit-self-test",
+      "tool": "dru-emit",
+      "category": "dfm",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "thermal-bridge-self-test",
+      "tool": "thermal-bridge",
+      "category": "thermal",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "ngspice-bridge-self-test",
+      "tool": "ngspice-bridge",
+      "category": "simulation",
+      "argv": ["--self-test"],
+      "expect": "GREEN",
+      "note": "Scores NO_COVERAGE rather than FAIL when ngspice is not installed."
+    },
+    {
+      "id": "openems-bridge-self-test",
+      "tool": "openems-bridge",
+      "category": "simulation",
+      "argv": ["--self-test"],
+      "expect": "GREEN",
+      "note": "Geometry extraction and Touchstone evaluation only; the FDTD engine is deliberately not ported (#49)."
+    },
+    {
+      "id": "error-memory-self-test",
+      "tool": "error-memory",
+      "category": "memory",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "testpoint-plan-self-test",
+      "tool": "testpoint-plan",
+      "category": "dft",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "pmic-allocation-self-test",
+      "tool": "pmic-allocation",
+      "category": "power",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "independent-verify-self-test",
+      "tool": "independent-verify",
+      "category": "verification",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "drc-gate-self-test",
+      "tool": "drc-gate",
+      "category": "verification",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    },
+    {
+      "id": "route-topological-self-test",
+      "tool": "route-topological",
+      "category": "routing",
+      "argv": ["--self-test"],
+      "expect": "GREEN"
+    }
+  ]
+}

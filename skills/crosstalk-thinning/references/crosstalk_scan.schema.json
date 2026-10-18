@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/crosstalk-scan/v1",
+  "title": "ProjectE crosstalk_scan — one record per parallel segment",
+  "type": "object",
+  "required": ["schema_version", "model_class", "signoff", "segments", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "crosstalk-scan/v1"},
+    "model_class": {"const": "exploratory_closed_form"},
+    "signoff": {
+      "const": false,
+      "$comment": "This screen never produces a high-speed interface PASS on its own."
+    },
+    "segments": {"type": "array", "items": {"$ref": "#/$defs/segment"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["NO_COVERAGE", "CONFIRM", "SCREEN_ONLY", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "segment": {
+      "type": "object",
+      "required": ["segment_id", "nets", "geometry", "inputs", "result"],
+      "properties": {
+        "segment_id": {"type": "string", "minLength": 1},
+        "nets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "string"},
+          "$comment": "Two-trace model. N-aggressor summation is not computed."
+        },
+        "net_class": {"type": ["string", "null"]},
+        "geometry": {
+          "type": "object",
+          "required": ["trace_width_mm", "spacing_mm"],
+          "properties": {
+            "trace_width_mm": {"type": "number", "exclusiveMinimum": 0},
+            "spacing_mm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "$comment": "Edge-to-edge, NOT centre-to-centre. D = S + W is derived internally."
+            },
+            "layer_type": {"enum": ["microstrip", "stripline", null]},
+            "copper_weight_oz": {"type": ["number", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "inputs": {"$ref": "#/$defs/inputs"},
+        "result": {"$ref": "#/$defs/result"}
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["dielectric_height_mm", "coupled_length_mm", "rise_time_ps", "sources"],
+      "properties": {
+        "dielectric_height_mm": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "H to the nearest reference plane. Null => NO_COVERAGE."
+        },
+        "coupled_length_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "rise_time_ps": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "MINIMUM (fastest) edge from the driver datasheet. Estimated values force CONFIRM."
+        },
+        "er": {"type": ["number", "null"]},
+        "impedance_controlled": {"type": ["boolean", "null"]},
+        "noise_budget_ratio": {"type": ["number", "null"], "exclusiveMinimum": 0, "default": 0.05},
+        "current_a": {"type": ["number", "null"]},
+        "delta_t_c": {"type": ["number", "null"]},
+        "fab_min_width_mm": {"type": ["number", "null"]},
+        "fab_min_clearance_mm": {"type": ["number", "null"]},
+        "reference_plane_continuous": {"type": ["boolean", "null"]},
+        "sources": {
+          "type": "object",
+          "required": ["dielectric_height", "rise_time", "impedance_controlled", "fab_limits", "noise_budget"],
+          "properties": {
+            "dielectric_height": {"enum": ["stackup_json", "fab_stackup", "fabricated", "unknown"]},
+            "rise_time": {"enum": ["datasheet_min", "datasheet_typ", "estimated", "unknown"]},
+            "impedance_controlled": {"enum": ["impedance_rules_json", "assumed", "unknown"]},
+            "fab_limits": {"enum": ["fab_capabilities_json", "local_policy", "unknown"]},
+            "noise_budget": {"enum": ["receiver_margin", "local_policy", "unknown"]}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "required": ["status", "reason", "next_ratio", "budget_ratio", "applied"],
+      "properties": {
+        "status": {"enum": ["SAFE_TO_THIN", "CROSSTALK_RISK", "THINNING_BLOCKED", "NO_COVERAGE"]},
+        "reason": {"type": "string", "minLength": 1},
+        "next_ratio": {"type": ["number", "null"], "minimum": 0},
+        "budget_ratio": {"type": ["number", "null"], "minimum": 0},
+        "kx": {"type": ["number", "null"]},
+        "kb": {"type": ["number", "null"], "maximum": 0.25},
+        "l_sat_mm": {"type": ["number", "null"]},
+        "suggested_width_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "suggested_spacing_mm": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "The tool always picks the MOST restrictive of 3W, budget solution and fab minimum."
+        },
+        "binding_constraint": {"enum": ["3W", "noise_budget", "fab_min", "ipc2221_current", null]},
+        "z0_before_ohm": {"type": ["number", "null"]},
+        "z0_after_ohm": {"type": ["number", "null"]},
+        "fext_modelled": {
+          "const": false,
+          "$comment": "FEXT is never modelled. Microstrip inputs always carry a CONFIRM."
+        },
+        "confirms": {"type": "array", "items": {"type": "string"}},
+        "applied": {
+          "type": ["object", "null"],
+          "required": ["geometry_written", "netclass_updated"],
+          "properties": {
+            "geometry_written": {"type": ["boolean", "null"]},
+            "netclass_updated": {
+              "type": ["boolean", "null"],
+              "$comment": "An applied SAFE_TO_THIN width must be reflected in the DRC net-class."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "Total parallel segments on the board."
+        },
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0},
+        "excluded_reasons": {
+          "type": ["array", "null"],
+          "items": {"type": "string"},
+          "$comment": "An unscanned parallel segment must be counted as excluded WITH a reason. Silently dropping it is NO_COVERAGE, not PASS."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "This tool writes no board or schematic file. Applying geometry belongs to the routing layer."
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/esd-test-profile/v1",
+  "title": "ProjectE ESD test profile skeleton",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "product_standard",
+    "edition",
+    "port",
+    "coupling_method",
+    "severity",
+    "waveform",
+    "setup",
+    "locator",
+    "accessed",
+    "snapshot_sha256",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {"const": "esd-test-profile/v1"},
+    "product_standard": {"type": ["string", "null"]},
+    "edition": {"type": ["string", "null"]},
+    "port": {"type": ["string", "null"]},
+    "coupling_method": {"type": ["string", "null"]},
+    "severity": {"type": ["string", "null"]},
+    "waveform": {"type": ["string", "null"]},
+    "setup": {"type": ["string", "null"]},
+    "locator": {"type": ["string", "null"]},
+    "accessed": {"type": ["string", "null"], "format": "date"},
+    "snapshot_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["TBD", "CONFIRM", "PASS"]}
+  },
+  "additionalProperties": false,
+  "$comment": "All unknown values remain null/TBD. Without a scoped product standard and physical L3 receipt, the 4/8 kV LOCAL_POLICY screen cannot be promoted to PASS."
+}

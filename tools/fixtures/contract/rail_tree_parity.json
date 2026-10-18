@@ -1,0 +1,23 @@
+{
+  "schema_version": "rail-tree-parity-fixture/v1",
+  "producer": "SKILL-guc-isil",
+  "consumer": "SKILL-orchestrator",
+  "producer_fields": [
+    "i_max_a",
+    "ipc2221_screen_width_mm",
+    "final_width_mm",
+    "standard",
+    "min_via_count",
+    "max_ir_drop_mv",
+    "c_eff_uf"
+  ],
+  "consumer_fields": [
+    "i_max_a",
+    "ipc2221_screen_width_mm",
+    "final_width_mm",
+    "standard",
+    "min_via_count",
+    "max_ir_drop_mv",
+    "c_eff_uf"
+  ]
+}

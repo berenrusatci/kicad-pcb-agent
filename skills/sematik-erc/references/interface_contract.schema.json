@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/interface-contract/v1",
+  "title": "ProjectE interface_contract (per external interface, mandatory before schematic)",
+  "type": "object",
+  "required": ["schema_version", "interfaces", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "interface-contract/v1"},
+    "interfaces": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interface"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "interface": {
+      "type": "object",
+      "required": [
+        "interface_id",
+        "connector_refdes",
+        "role",
+        "direction",
+        "continuous_current_a",
+        "peak_current_a",
+        "inrush",
+        "max_vdrop_mv",
+        "reverse_policy",
+        "ovp_policy",
+        "iec_esd_target",
+        "source",
+        "decision_status"
+      ],
+      "properties": {
+        "interface_id": {"type": "string", "minLength": 1},
+        "connector_refdes": {"type": ["string", "null"]},
+        "role": {
+          "enum": ["measurement_only", "power_in", "power_out", "bidirectional", "signal_only", "unknown"],
+          "$comment": "If unknown, no protection MPN or limit may be selected. Leave CONFIRM."
+        },
+        "direction": {"enum": ["in", "out", "bidirectional", "unknown"]},
+        "leaves_board": {
+          "type": ["boolean", "null"],
+          "$comment": "Every interface that leaves the board needs an esd_chain entry and a physically reserved filter/choke area."
+        },
+        "cable_present": {"type": ["boolean", "null"]},
+        "cable_length_m": {"type": ["number", "null"], "minimum": 0},
+        "continuous_current_a": {"type": ["number", "null"], "minimum": 0},
+        "peak_current_a": {"type": ["number", "null"], "minimum": 0},
+        "inrush": {
+          "type": ["object", "null"],
+          "required": ["expected_a", "mitigation"],
+          "properties": {
+            "expected_a": {"type": ["number", "null"], "minimum": 0},
+            "mitigation": {"enum": ["soft_start", "ntc", "efuse", "none_required", "unresolved", null]}
+          },
+          "additionalProperties": false,
+          "$comment": "Inrush does not appear in the average current of rail_tree.json."
+        },
+        "max_vdrop_mv": {"type": ["number", "null"], "minimum": 0},
+        "reverse_policy": {"enum": ["none", "diode", "pfet", "efuse", "connector_keying", "TBD", null]},
+        "ovp_policy": {"enum": ["none", "tvs", "clamp_ic", "efuse", "TBD", null]},
+        "iec_esd_target": {
+          "type": ["object", "null"],
+          "required": ["product_standard", "severity_kv_contact", "severity_kv_air", "origin"],
+          "properties": {
+            "product_standard": {"type": ["string", "null"]},
+            "severity_kv_contact": {"type": ["number", "null"]},
+            "severity_kv_air": {"type": ["number", "null"]},
+            "origin": {
+              "enum": ["product_standard", "local_policy", "unknown", null],
+              "$comment": "local_policy (the 4/8 kV default) can never be promoted to a D/L3 PASS."
+            }
+          },
+          "additionalProperties": false
+        },
+        "signal_rates": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "required": ["net_class", "lane_rate_gbps", "rise_time_ps", "rise_time_source"],
+            "properties": {
+              "net_class": {"type": "string"},
+              "lane_rate_gbps": {"type": ["number", "null"], "exclusiveMinimum": 0},
+              "rise_time_ps": {
+                "type": ["number", "null"],
+                "exclusiveMinimum": 0,
+                "$comment": "Use the MINIMUM (fastest) edge from the driver datasheet, not the typical value."
+              },
+              "rise_time_source": {"enum": ["datasheet_min", "datasheet_typ", "estimated", "unknown", null]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "filter_area_reserved": {
+          "type": ["boolean", "null"],
+          "$comment": "Filter/choke footprint must be placed up front (DNP if unused). There is no room for it later."
+        },
+        "source": {"type": ["string", "null"]},
+        "decision_status": {"enum": ["TBD", "CONFIRM", "accepted", "rejected"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "This contract is mandatory BEFORE the schematic opens. An interface whose role is unknown blocks protection component selection."
+}

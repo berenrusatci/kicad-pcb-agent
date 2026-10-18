@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "l3-rule-universe/v1",
+  "title": "L3 kural evreni — hangi D satırı, hangi limitle, kimin otoritesiyle kapanır",
+  "$comment": "SAHİPLİK: bu artifact dogrulama-matrisi'nindir, l3-bringup-karakterizasyon'un DEĞİL. Ayrım mekaniktir, üsluba dair değil: limitin sahibi ile kanıtın sahibi aynı olursa kapı kendi yazdığı eşiği kendi ölçtüğü değerle karşılaştırır ve bir tautolojiye döner (skills/_shared/rule-conflicts.md §9). Bu yüzden şema BURADA yaşar ve L3 aracı onu yalnız OKUR; tools/scripts/lab/physical_measurement.py::rule_limit fonksiyonunun hiçbir fallback dalı yoktur — eksik limitin ürettiği tek şey NO_COVERAGE'dır, asla bir sayı değil.",
+
+  "type": "object",
+  "required": ["schema_version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "l3-rule-universe/v1"},
+    "board_revision": {
+      "type": ["string", "null"],
+      "$comment": "Bilgilendirme amaçlı. Ölçümün karta bağlanması bu alandan değil, kabul edilmiş first-article biriminden yapılır."
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "$comment": "Boş dizi kapıyı açmaz: taranacak satır yoksa sonuç NO_COVERAGE'dır. 'Hiçbir D satırı yok' iddiası matrisin kendisiyle çelişir.",
+      "items": {"$ref": "#/$defs/rule"}
+    }
+  },
+
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["rule_id", "owner", "measurement_class"],
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "dogrulama-matrisi/SKILL.md'deki satırla eşleşir. assert_matrix normalleştirilmiş metin üzerinden TAM eşleşme yapar; yeniden yazılan bir satır assertion'ını sessizce başka bir satıra yönlendirmek yerine öksüz bırakmalıdır."
+        },
+        "title": {"type": ["string", "null"]},
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "RED'de L2 kenarının açılacağı skill. Beyan edilmezse satır OWNER_NOT_DECLARED -> NO_COVERAGE olur: geri beslenecek bir upstream'i olmayan bir RED, kimsenin işi değildir."
+        },
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "$comment": "false, satırı kapsam paydasından çıkarır ve isteğe bağlı olarak raporlar. Varsayılanı true tutmak kasıtlıdır: unutulan bir satır zorunlu kalır."
+        },
+        "measurement_class": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Kaydın ölçüm türü bununla karşılaştırılır. tdr/vna/sparam/touchstone sınıfları ek metadata (port_map, reference_impedance, fixture, deembed_method, reference_plane, measurement_zone) zorunlu kılar — highspeed-routing/SKILL.md §6."
+        },
+        "campaign_stage": {
+          "enum": ["power_safe", "functional", "characterisation"],
+          "default": "characterisation",
+          "$comment": "Lab kampanyası güvenlik nedeniyle seridir. Sıra dışı bir kayıt raporlanır ama verdict'i düşürmez: ölçüm alınmıştır, sonradan reddetmek kural icat etmek olur."
+        },
+        "required_compliance_class": {
+          "enum": ["pre_compliance", "bench", "accredited_lab"],
+          "$comment": "Kaydın sınıfı bunun altındaysa satır kapanmaz. Ön-uyum kaydı akredite bir gereksinimi ASLA karşılamaz; SCREEN_ONLY GREEN'e yükseltilmez (emc-esd/SKILL.md)."
+        },
+        "limit": {
+          "$ref": "#/$defs/limit",
+          "$comment": "YOKSA satır NO_COVERAGE'dır. Bu, aracın bir eksikliği değil sözleşmenin kendisidir: kimsenin söylemediği bir eşik karşılanmış olamaz (common/findings.py::acceptance_verdict)."
+        }
+      }
+    },
+
+    "limit": {
+      "type": "object",
+      "required": ["units", "authority"],
+      "additionalProperties": false,
+      "$comment": "min ve max'tan EN AZ BİRİ bulunmalıdır; ikisi de yoksa karşılaştırılacak bir taraf yoktur.",
+      "anyOf": [
+        {"required": ["min"]},
+        {"required": ["max"]}
+      ],
+      "properties": {
+        "units": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Kaydın birimiyle birebir eşleşmelidir (UNIT_MISMATCH). Etiketsiz bir sayıyı etiketli bir eşikle karşılaştırmak, sonradan tespit edilemeyen bir hatadır."
+        },
+        "min": {"type": ["number", "null"]},
+        "max": {"type": ["number", "null"]},
+        "authority": {"$ref": "#/$defs/authority"}
+      }
+    },
+
+    "authority": {
+      "type": "object",
+      "required": ["owner_skill", "document_id", "locator"],
+      "additionalProperties": true,
+      "$comment": "Üçü de zorunludur. owner_skill 'l3-bringup-karakterizasyon' ise limit REDDEDİLİR (SELF_AUTHORED_LIMIT): kendi eşiğini yazan bir kapı kendini ölçer.",
+      "properties": {
+        "owner_skill": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Limitin kanonik sahibi: guc-isil, empedans-stackup, emc-esd, highspeed-routing veya dogrulama-matrisi."
+        },
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Revizyonsuz bir üretici belgesi bir belge DEĞİL, bir belge AİLESİDİR (sim/model_registry.py'nin provenance kuralı). Revizyonu buraya dahil et."
+        },
+        "locator": {"type": "string", "minLength": 1},
+        "revision": {"type": ["string", "null"]},
+        "accessed": {"type": ["string", "null"]},
+        "snapshot_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "$comment": "AUTHORITATIVE_SOURCE kökeni için _shared/coverage-gate.md tam provenance ister. Eksikse limit okunur ama satır signoff üretmez."
+        }
+      }
+    }
+  }
+}

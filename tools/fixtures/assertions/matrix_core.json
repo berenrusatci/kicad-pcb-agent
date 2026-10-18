@@ -1,0 +1,380 @@
+{
+  "schema_version": "assertion-set/v1",
+  "$comment": "TRANSCRIPTION, NOT AUTHORSHIP. Every threshold below is written verbatim in skills/dogrulama-matrisi/SKILL.md section 2 - all of them are zero, which is why they could be transcribed at all. No engineering threshold was invented here (constraint #3). The rule text of each entry is copied exactly from its matrix row, because matching is by exact normalised text and a reworded copy would silently become an ORPHAN_ASSERTION. Rows whose level is C->A, C->D, A(kismi) or A(screen) are deliberately absent: their level cannot be resolved by a machine, so they are reported as UNASSERTED_RULE, which is the correct answer until somebody decides.",
+  "$comment_binding": "2026-08-09: every selector below used to name a summary.* path that NO tool in this tree emits. The thresholds were right and the bindings were fiction, so the first run against a real report returned NO_COVERAGE on all six - the same PATH_ABSENT class the matrix already records for parallelism_coverage, sitting on the rows the inventory calls complete. The engine was covered by 135 tests; the SET had never been pointed at a report any tool actually produced. Selectors now name the emitted paths verbatim (drc_gate.py -> metrics.*/census.*, measure_board.py -> measurements.*), and each was executed against the live cam-w-og05b10 board before being written here.",
+  "evidence": {
+    "drc": {
+      "artifact": "board.kicad_pcb",
+      "hash_selector": "design.sha256",
+      "produced_by": "scripts/drc_gate.py <board.kicad_pcb>",
+      "$comment": "Declaring the binding is what lets a stale report be caught. Without it the run is SCREEN_ONLY, never GREEN - the same call section 5 already made for drc.sh, measure.py and coupling.py. The selector is 'design.sha256' because that is where drc_gate.py writes the digest; the old 'inputs.board_sha256' was a path no tool has ever written, so the binding it declared could not fire either."
+    },
+    "erc": {
+      "artifact": "schematic.kicad_sch",
+      "hash_selector": "design.sha256",
+      "produced_by": "scripts/drc_gate.py <schematic.kicad_sch>",
+      "$comment": "drc_gate.py detects ERC mode from the .kicad_sch suffix and writes the same report shape, digest included."
+    },
+    "measure": {
+      "artifact": "board.kicad_pcb",
+      "hash_selector": "design.sha256",
+      "produced_by": "scripts/board/measure_board.py <board.kicad_pcb>",
+      "$comment": "Third evidence source, added 2026-08-09. The 90-degree-corner row was bound to 'drc' and no DRC report has ever carried a corner count: right_angle_corners is measured by measure_board.py and by nothing else. That was not a rename - the assertion was reading the wrong tool. measure_board.py emitted no digest at all until this change, so this binding did not exist to be declared."
+    },
+    "dfm": {
+      "artifact": "board.kicad_pcb",
+      "hash_selector": "design.sha256",
+      "produced_by": "scripts/board/dfm_emc_check.py <board.kicad_pcb>",
+      "$comment": "Fourth evidence source, 2026-08-10. dfm_emc_check.py routes through common.findings.board_report(), so it has carried design.sha256 since that envelope was shared; what it lacked was a name-keyed way to reach one check's COVERAGE. by_check.<name>.scanned is that path."
+    },
+    "coupling": {
+      "artifact": "board.kicad_pcb",
+      "hash_selector": "design.sha256",
+      "produced_by": "scripts/board/pair_coupling.py <board.kicad_pcb>",
+      "$comment": "pair_coupling.py emitted neither design nor metrics until 2026-08-10, although its own schema listed both as required - so every report it produced was unbindable and nothing noticed, because no consumer validated it."
+    },
+    "crosstalk": {
+      "produced_by": "scripts/crosstalk_thinning.py",
+      "$comment": "NO artifact and NO hash_selector, deliberately. This tool's inputs are CLI geometry numbers, not a design file: there is nothing on disk to hash, so the evidence is unbound and the run can never exceed SCREEN_ONLY on it. That is the honest outcome and it is recorded here rather than papered over by naming a board the tool never read.",
+      "unbound_reason": "crosstalk_thinning.py takes CLI geometry numbers, not a design file: there is no artifact on disk to hash, so this source is structurally unbindable and every run resting on it caps at SCREEN_ONLY. Declared rather than omitted so that unbindable and forgotten do not look the same."
+    },
+    "interconnect": {
+      "artifact": "system-planning/interconnect_chain.json",
+      "hash_selector": "inputs.chain.sha256",
+      "produced_by": "scripts/interconnect_mating.py --contract <interface_contract.json> --chain <interconnect_chain.json>",
+      "$comment": "Sixth evidence source, 2026-08-12. Unlike every source above it is NOT a board file: this gate compares two DOCUMENTS, so the binding is the chain record's digest and the report also carries inputs.contract.sha256 for the document the DENOMINATOR came from. Both are needed and they are deliberately separate files - a denominator and a numerator read from one document is a document checked against itself. The artifact is the REAL repo path so the binding actually fires: `bound` requires the file to be hashable at assert time, exactly like the board.kicad_pcb sources above. A run whose chain lives elsewhere reports evidence_bound=false and caps at SCREEN_ONLY - which is the honest outcome, not a defect."
+    }
+  },
+  "assertions": [
+    {
+      "id": "erc-error-zero",
+      "rule": "ERC error = 0 (bayraklarıyla)",
+      "level": "B",
+      "loop": "L0",
+      "on_fail": "düzelt, PWR_FLAG ile susturma",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 2",
+      "authority": "signoff",
+      "evidence": "erc",
+      "selector": "metrics.error_count",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "metrics.error_count",
+        "value": 1
+      },
+      "notes": "The threshold is 0 because the matrix says 0. The flags matter as much as the count: '0 sorun' and 'the check did not run' look identical in a report, which is why the matrix pins --severity-error --severity-warning --exit-code-violations into the tool column. drc_gate.py hard-codes --severity-all --exit-code-violations, so the flag half of the rule is met by the tool rather than by this assertion."
+    },
+    {
+      "id": "schematic-parity",
+      "rule": "Netlist ↔ şematik parity",
+      "level": "B",
+      "loop": "L0",
+      "on_fail": "düzelt",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 2",
+      "authority": "signoff",
+      "evidence": "drc",
+      "selector": "metrics.parity_difference_count",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "metrics.parity_difference_count",
+        "value": 2
+      },
+      "notes": "drc_gate.py already refuses to read an empty parity list as evidence of parity; this assertion only reads the count it publishes."
+    },
+    {
+      "id": "drc-violations-zero",
+      "rule": "DRC 0 ihlal (repo rule set)",
+      "level": "B",
+      "loop": "L0",
+      "on_fail": "düzelt",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "authority": "signoff",
+      "evidence": "drc",
+      "selector": "metrics.violation_count",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "metrics.violation_count",
+        "value": 7
+      },
+      "notes": "The matrix marks this row's tool with a warning: drc.sh is not in this repo and carries no hash binding, so its result is SCREEN_ONLY on its own. That warning is now stale in one half - drc_gate.py IS in this repo and DOES carry the binding (see C8 in docs/tool-inventory.md) - and live in the other: the binding only holds when the evidence block above resolves to a file on disk."
+    },
+    {
+      "id": "unrouted-and-shorts-zero",
+      "rule": "Unrouted 0 / short 0",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "route",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "shorts: this assertion reads unconnected_count, the UNROUTED half of the row. Shorts arrive inside violation_count and are covered by drc-violations-zero, not here."
+      ],
+      "authority": "signoff",
+      "evidence": "drc",
+      "selector": "metrics.unconnected_count",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "metrics.unconnected_count",
+        "value": 4
+      },
+      "notes": "Half the rule. unconnected_count is the unrouted half; shorts arrive inside violation_count as a DRC violation type and are covered by drc-violations-zero. Two counters, one matrix row - recorded here so the row is not read as proving more than it does."
+    },
+    {
+      "id": "right-angle-corners-zero",
+      "rule": "90° köşe sayısı = 0",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "köşeleri 45°/yay yap",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "corners on nets not passed with --net: measure_board.py only walks the nets it was asked for, so an unnamed net's 90-degree corner is outside this claim."
+      ],
+      "authority": "signoff",
+      "evidence": "measure",
+      "selector": "measurements.right_angle_corners",
+      "operator": "count_at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "by_check.no_right_angle_corners.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "measurements.right_angle_corners",
+        "value": [
+          {
+            "net": "FALSIFIER",
+            "layer": "F.Cu",
+            "at": [
+              0,
+              0
+            ],
+            "turn_deg": 90.0
+          }
+        ]
+      },
+      "notes": "count_at_most, not at_most: measure_board.py publishes the offending corners as a LIST, and comparing a list against 0 with at_most is the type error assertions.py refuses. The measurement only covers nets passed with --net; corners on unnamed nets are outside this assertion, which is why the run reports coverage alongside the verdict."
+    },
+    {
+      "id": "wires-present",
+      "rule": "Wire sayısı > 0 / uçan net yok",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "yeniden yönlendir",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 2",
+      "authority": "signoff",
+      "evidence": "erc",
+      "selector": "census.wire",
+      "operator": "at_least",
+      "expected": 1,
+      "tolerance": 0,
+      "coverage_waiver": "This assertion IS a coverage denominator check - it exists to catch the empty schematic that passes every violation-counting rule. Guarding it with a second scanned count would turn that exact case into NO_COVERAGE instead of the FAIL the rule is written to produce.",
+      "falsifier": {
+        "operation": "set",
+        "path": "census.wire",
+        "value": 0
+      },
+      "notes": "The only non-zero threshold in this set, and it is still transcribed rather than chosen: the matrix row literally reads '> 0'. It exists because zero wires is the empty-comparison trap - a schematic with nothing in it passes every check that only counts violations. The count comes from drc_gate.py's schematic census, which is the coverage denominator it already computes - not a second parser written for this assertion."
+    },
+    {
+      "id": "epad-paste-coverage-clean",
+      "rule": "EPAD pasta kapsaması",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "negatif margin/windowpane; çok-açıklıklı desende elle",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "separately drawn multi-aperture / windowpane paste patterns: the check models one pad plus its solder-paste margin and does not recognise them (dfm_emc_check.py states this in the finding's own detail string).",
+        "anisotropic paste margin: only the X component is read, and it is applied to both axes.",
+        "the ratio limit itself is a tool default (--paste-ratio-max), not a sourced threshold, and it does not agree with the 50-75% band skills/dfm/SKILL.md cites. Until the component land-pattern / assembly stencil standard is supplied, the number this passes against has no provenance."
+      ],
+      "authority": "screen_only",
+      "evidence": "dfm",
+      "selector": "by_check.epad_paste_coverage.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "by_check.epad_paste_coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "by_check.epad_paste_coverage.violations",
+        "value": 2
+      },
+      "notes": "Bound to by_check rather than metrics on purpose. metrics.epad_paste_coverage carries the violation COUNT, and an empty check reports zero violations because its violation list is empty - so 'metrics.epad_paste_coverage at_most 0' passes on a board with no exposed pads at all. coverage_selector binds the scanned count that makes the difference visible. authority is screen_only because the limit compared against is a CLI default; it becomes signoff when a sourced stencil standard replaces it, and that is a one-field change recorded here rather than a silent promotion."
+    },
+    {
+      "id": "edge-keepout-ceramics-clean",
+      "rule": "Kenar/depanel seramik keepout",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "parçayı taşı; yön kontrolü elle",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "orientation: the check computes orientation_deg and reports it, but it is not part of the pass/fail predicate - whether the part's long axis lies parallel to the break line is still a manual call.",
+        "V-score and panel break lines: no panel geometry exists in the board artifact, so the real depanel stress path is not modelled at all.",
+        "the measured point is the footprint anchor, not a computed body centre, and Edge.Cuts is sampled at 1.0 mm, so the distance carries roughly half a millimetre of sampling error on straights and more on arcs.",
+        "part selection is '2-pad reference starting C/R/L', which also catches through-hole parts despite the docstring saying SMD.",
+        "the keepout distance is a tool default (--edge-keepout-mm), not a sourced threshold: no component flex/crack guidance or fab depanel procedure has been supplied."
+      ],
+      "authority": "screen_only",
+      "evidence": "dfm",
+      "selector": "by_check.edge_keepout_ceramics.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "by_check.edge_keepout_ceramics.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "by_check.edge_keepout_ceramics.violations",
+        "value": 1
+      },
+      "notes": "Same by_check binding and the same reason as the EPAD row. The residual list is longer here because the automated subclaim covers a genuinely narrow slice: a distance from an anchor point to a sampled outline. Everything the depanel process actually does to a ceramic part is in the residual."
+    },
+    {
+      "id": "crosstalk-next-screen",
+      "rule": "Crosstalk NEXT taraması",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "boşluk aç / H küçült / uzunluk kısalt",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "FEXT is not modelled. Microstrip is an inhomogeneous medium, FEXT is not zero, and over a long coupled run it can exceed NEXT - the tool publishes this as CONFIRM rather than counting it as a pass.",
+        "single aggressor only: there is no N-aggressor sum, so a victim between two aggressors is understated.",
+        "closed-form coupling model, not a field solve. The tool stamps signoff:false on every one of its return paths and its own header calls it exploratory.",
+        "the screening budget compared against is not sourced: no interface or channel noise budget has been supplied."
+      ],
+      "authority": "screen_only",
+      "evidence": "crosstalk",
+      "selector": "coverage.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "coverage.violations",
+        "value": 1
+      },
+      "notes": "This is the row the matrix wrote as A(screen). It is a real measurement - the tool computes NEXT from geometry and rise time, so calling it level C would be wrong - and its clean result may not close a crosstalk sign-off. Before authority existed there was no way to state both, and the row stayed unasserted. Note the evidence is additionally unbound (no artifact to hash), so this assertion caps the run at SCREEN_ONLY twice over, for two different reasons, and the reason codes distinguish them."
+    },
+    {
+      "id": "parallelism-coverage-clean",
+      "rule": "parallelism_coverage (tanımlı metrik)",
+      "level": "A",
+      "loop": "L0",
+      "on_fail": "yeniden route; impedance_pass üretmez",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 3",
+      "coverage": "partial",
+      "residual_evidence": [
+        "the metric is same-layer centreline proximity sampled at a fixed step - it is a geometry precheck and never produces impedance_pass, as the length_report schema states outright.",
+        "the coupled-fraction target and the spacing tolerance are tool defaults. Whether a per-net-class target and tolerance should exist at all is an open decision recorded in docs/CONSOLIDATION-NOTES.md; the global >=95% gate was removed and not replaced.",
+        "the sampling step is a parameter of the measurement, so two runs at different steps are not the same metric."
+      ],
+      "authority": "screen_only",
+      "evidence": "coupling",
+      "selector": "coverage.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "coverage.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "coverage.violations",
+        "value": 3
+      },
+      "notes": "The matrix names a metric - parallelism_coverage - that NO tool in this tree emits; the string appears in 26 places, all of them documentation or schema, and zero producers. So this row was never 'unmeasured', it was misbound. pair_coupling.py does compute the measurement, publishing per-pair coupled_fraction plus a coverage block. This assertion binds the aggregate coverage rather than pairs[i], because a positional index silently re-points at a different pair whenever the pair list changes."
+    },
+    {
+      "id": "pressed-stackup-impedance-measured",
+      "rule": "Maske etkisi / etch factor / preslenmiş H",
+      "level": "D",
+      "loop": "L3",
+      "on_fail": "fab raporuyla hesabı güncelle",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 2",
+      "$comment_level": "The row read C->D until 2026-08-10, which made it unresolvable: a regex cannot decide whether a rule is a document gate today or a measurement tomorrow. It is D. What this row is about is the difference between the nominal geometry in the design file and the geometry that came out of the press - real mask effect, real etch result, real pressed dielectric height. A fab's nominal stackup declaration is a pre-fab PREREQUISITE, not the measurement; closing the row on it would be exactly the C-dressed-as-A error the taxonomy warns about at the top of this skill. The matrix's own honest list puts 'gerçek empedans' among the things software cannot prove.",
+      "notes": "Carries no 'measurement' block yet, so it evaluates to NO_COVERAGE with MEASUREMENT_ABSENT - the correct answer before a board exists. Filing it requires the level D contract: instrument, setup, baseline, date, and an explicit pass boolean. The pre-fab half is already tooled: tools/scripts/coupon_plan.py plans the coupon and refuses to guess er_eff, so the coupon is designed before the panel is ordered rather than wished for afterwards. What is still missing is an operator input, not code: the sourced controlled-impedance acceptance requirement and the fab's coupon/TDR procedure."
+    },
+    {
+      "id": "ic-net-identity",
+      "rule": "R11 Net kimliği (birebir) + sıra",
+      "level": "A",
+      "loop": "L1",
+      "on_fail": "sözleşmeyi ya da kartı düzelt (normalleştirme YOK) → L2 kenarı sözleşmeye",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 1 — arayüz eşleşmesi",
+      "authority": "signoff",
+      "evidence": "interconnect",
+      "selector": "rule_coverage.R11.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "rule_coverage.R11.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "rule_coverage.R11.violations",
+        "value": 1
+      },
+      "notes": "Alias tablosu YASAK: MIPI_D0_P != CSI_D0_P bir ihlaldir ve çözümü normalleştirme değil, sözleşmenin/kartın düzeltilmesidir. Aynı net kümesi yanlış sırada ise PIN_ORDER_MISMATCH - küme eşitliği ecad-varlik-kalifikasyonu'nun, SIRA bu kapının predicate'i. | Payda KURAL BAŞINA bağlandı (rule_coverage.R11.scanned), bulgu başına DEĞİL: bulgular kuralları gruplara topluyor (pin_ortusmesi R10+R11+R13'ü birlikte sayar), dolayısıyla metrics.pin_ortusmesi üzerine yazılmış bir assertion ölçmediği ihlaller üzerinden geçer. BULGU-bos-kontrol-temiz-gorunur.md:126-133: selector bağlanmamış bir A/B assertion'ı yüklenmemelidir (COVERAGE_UNBOUND), çünkü 'ihlal yok' ile 'hiçbir şeye bakılmadı' aynı sayıya düşer. Bu kapı tam olarak o tuzağı kapatmak için var."
+    },
+    {
+      "id": "ic-power-on-signal",
+      "rule": "R12 Güç/veri çarpışması — KALICI HASAR",
+      "level": "A",
+      "loop": "L1",
+      "on_fail": "pin haritasını düzelt; bring-up öncesi bloklayıcı, R6 ile aynı önceliğe koyma",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 1 — arayüz eşleşmesi",
+      "authority": "signoff",
+      "evidence": "interconnect",
+      "selector": "rule_coverage.R12.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "rule_coverage.R12.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "rule_coverage.R12.violations",
+        "value": 1
+      },
+      "notes": "ÖLDÜRÜCÜ kural. Yanlış pin haritası MIPI'de 'çalışmaz' değil, 3V3'ün bir D-PHY lane'ine binmesidir. R6 sessiz açık devre üretir, R12 sessiz hasar; aynı önceliğe konmaz. coverage_selector kritik: pin sınıfları beyan edilmediyse scanned=0 olur ve 'çarpışma yok' okuması bir BOŞLUKtur, temizlik değil. | Payda KURAL BAŞINA bağlandı (rule_coverage.R12.scanned), bulgu başına DEĞİL: bulgular kuralları gruplara topluyor (pin_ortusmesi R10+R11+R13'ü birlikte sayar), dolayısıyla metrics.pin_ortusmesi üzerine yazılmış bir assertion ölçmediği ihlaller üzerinden geçer. BULGU-bos-kontrol-temiz-gorunur.md:126-133: selector bağlanmamış bir A/B assertion'ı yüklenmemelidir (COVERAGE_UNBOUND), çünkü 'ihlal yok' ile 'hiçbir şeye bakılmadı' aynı sayıya düşer. Bu kapı tam olarak o tuzağı kapatmak için var."
+    },
+    {
+      "id": "ic-diffpair-integrity",
+      "rule": "R13 Diferansiyel çift bütünlüğü",
+      "level": "A",
+      "loop": "L1",
+      "on_fail": "polarite/çift atamasını düzelt",
+      "source": "skills/dogrulama-matrisi/SKILL.md §2 Faz 1 — arayüz eşleşmesi",
+      "authority": "signoff",
+      "evidence": "interconnect",
+      "selector": "rule_coverage.R13.violations",
+      "operator": "at_most",
+      "expected": 0,
+      "tolerance": 0,
+      "coverage_selector": "rule_coverage.R13.scanned",
+      "falsifier": {
+        "operation": "set",
+        "path": "rule_coverage.R13.violations",
+        "value": 1
+      },
+      "notes": "P/N takası (DIFFPAIR_SWAP) ve çift ayrışması (DIFFPAIR_SPLIT) ayrı kodlardır. | Payda KURAL BAŞINA bağlandı (rule_coverage.R13.scanned), bulgu başına DEĞİL: bulgular kuralları gruplara topluyor (pin_ortusmesi R10+R11+R13'ü birlikte sayar), dolayısıyla metrics.pin_ortusmesi üzerine yazılmış bir assertion ölçmediği ihlaller üzerinden geçer. BULGU-bos-kontrol-temiz-gorunur.md:126-133: selector bağlanmamış bir A/B assertion'ı yüklenmemelidir (COVERAGE_UNBOUND), çünkü 'ihlal yok' ile 'hiçbir şeye bakılmadı' aynı sayıya düşer. Bu kapı tam olarak o tuzağı kapatmak için var."
+    }
+  ],
+  "$comment_axes": "2026-08-10: coverage and authority became fields of their own. They were previously smuggled into the level string as A(kismi) and A(screen), which matrix.py rightly refused to resolve, leaving those rows unassertable. level now answers only 'how was this acquired'; coverage answers 'how much of the rule does it reach'; authority answers 'what may a PASS close'. Two rows here were ALREADY partial and said so only in prose: unrouted-and-shorts-zero reads one of the row's two counters, and right-angle-corners-zero only sees nets passed with --net. coverage_selector is the second half: metrics.* carries violation COUNTS, and a count of zero is exactly what an empty check reports, so every executable A/B assertion must now bind the field proving something was examined - or say in writing why its artifact has none.",
+  "$comment_interconnect": "2026-08-12: arayuz-eslesme-kapisi satırları. Assertion YALNIZ düz `A` satırlarına yazıldı (R11 net kimliği, R12 güç/veri çarpışması, R13 diferansiyel çift) ve her üçünün paydası `rule_coverage.<R>.scanned`'a BAĞLANDI. Payda kural başınadır, bulgu başına DEĞİL: bulgular kuralları gruplara topluyor (`pin_ortusmesi` R10+R11+R13'ü birlikte sayar), dolayısıyla `metrics.pin_ortusmesi` üzerine yazılmış bir R11 assertion'ı ölçmediği ihlaller üzerinden geçer/kalır. BULGU-bos-kontrol-temiz-gorunur.md:126-133: selector bağlanmamış bir A/B assertion'ı yüklenmemelidir (COVERAGE_UNBOUND), çünkü 'ihlal yok' ile 'hiçbir şeye bakılmadı' aynı sayıya düşer — bu kapı tam olarak o tuzağı kapatmak için var ve kendi satırlarının aynı tuzağa düşmesi kabul edilemezdi. BİLEREK ASSERTION ALMAYANLAR ve sebepleri, hepsi UNASSERTED_RULE olarak kalır ve bu bir eksiklik değil KAYITLI bir karardır: (1) `C→A` satırları (R1, R2, R3, R4, R7, R9, R10, R14, R18) — bir assertion onları claim ettiğinde `cross_reference` AMBIGUOUS_LEVEL veriyor ve HAKLI: hangi seviyenin bugün geçerli olduğu bekleyen bir mühendislik kararıdır ve onu bir assertion'da seçmek, matrix.py'nin bilinçli olarak reddettiği şeyi bir regex yerine bir fixture'da yapmak olurdu. Aynı durum matristeki her `C→A` satırı için geçerli — emsal `Konnektör akımı (derating sonrası)` (dogrulama-matrisi §2 Faz 1), o da iki belgeyi karşılaştıran bir araca (connector_current.py) sahip ve assertion'ı yok. Seviye kararı verilirse bu dokuz satır tek seferde bağlanabilir; araç zaten `rule_coverage.<R>.{scanned,violations}` yayımlıyor. (2) R6/R8/R16/R19/R20 — `authority: record_only`: temiz bir sonuç bir şey kapatmaz, kirli bir sonuç da kapıyı kapatmaz (yalnız CONFIRM cap'i ekler); bir assertion onlara sahip olmadıkları imza yetkisini verirdi. (3) R5 (cinsiyet) ve R15 (stack height) — bugün hiçbir gerçek koşuda ölçülmüyor (`scanned=0`: iki tarafta birden beyan edilmiyor). Ölçülmeyen bir satıra assertion yazmak eşiği değil, eşiğin var olduğu yanılsamasını üretir. (4) R17 — bir CAP eksenidir, bir eşik değil: provenans eksikliği ölçülmüş bir uyuşmazlık değil OTORİTE eksikliğidir ve verdict'i CONFIRM'e kapar. Sayısı `provenance_coverage` bloğunda ayrıca assert edilebilir. (5) D/L3 satırları (fiziksel eşleşme fixture'ı, pin-1 mirroring paritesi) — `l3_rule_universe.json` üzerinden `l3-bringup-karakterizasyon`'a devredildi; limitin sahibi eşleşme kapısı, ölçümün sahibi L3 aracı. Doğru hâli budur."
+}

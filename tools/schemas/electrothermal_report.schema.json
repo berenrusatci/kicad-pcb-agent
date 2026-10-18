@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/electrothermal-report/v1",
+  "title": "ProjectE coupled electrothermal report",
+  "description": "Output of tools/scripts/board/electrothermal.py. Two fields are the reason this exists rather than being a small correction to an existing number: 'equilibrium.loop_gain', which decides whether a steady state exists at all, and 'uncoupled.coupling_error_k', which states how far the previous uncoupled calculation was from the coupled answer instead of silently replacing it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "inputs",
+    "equilibrium",
+    "uncoupled",
+    "maximum_stable_current_a",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "electrothermal-report/v1"
+    },
+    "tool": {
+      "const": "electrothermal"
+    },
+    "signoff": {
+      "const": false
+    },
+    "status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE"
+      ]
+    },
+    "effective_status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE",
+        "ERROR"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "THERMAL_RUNAWAY",
+          "TEMPERATURE_EXCEEDED",
+          "RISE_EXCEEDED"
+        ]
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "current_a",
+        "thermal_resistance_k_per_w",
+        "ambient_c",
+        "alpha_per_k",
+        "resistance_20c_ohm",
+        "resistance_source"
+      ],
+      "properties": {
+        "current_a": {
+          "type": "number",
+          "minimum": 0
+        },
+        "thermal_resistance_k_per_w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "REQUIRED input, never derived. It depends on the stackup, plane coupling, airflow and neighbours, and the loop gain is directly proportional to it - so a default would set the answer."
+        },
+        "ambient_c": {
+          "type": "number"
+        },
+        "alpha_per_k": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Temperature coefficient of resistance. Defaulted to 3.93e-3 for annealed copper, a settled material property, and overridable for an alloy or plated finish."
+        },
+        "rho_20_ohm_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "resistance_20c_ohm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "resistance_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stated directly or computed from geometry, and which."
+        }
+      },
+      "additionalProperties": true
+    },
+    "equilibrium": {
+      "type": "object",
+      "required": [
+        "converged",
+        "loop_gain",
+        "stable",
+        "temperature_c"
+      ],
+      "properties": {
+        "converged": {
+          "type": "boolean"
+        },
+        "loop_gain": {
+          "type": "number",
+          "minimum": 0,
+          "description": "G = I^2 * R20 * alpha * Rth, the derivative of the fixed-point map. G >= 1 means every degree of heating buys more than a degree of further heating and there is no steady state. Available in CLOSED FORM before any iteration, which is why the iteration never has to be trusted to notice."
+        },
+        "stable": {
+          "type": "boolean"
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "temperature_c": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Null when the loop has no fixed point. Reporting the last iterate instead would give the most confident answer exactly where the physics has none."
+        },
+        "resistance_ohm": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "power_w": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rise_k": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "closed_form_temperature_c": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "iteration_vs_closed_form_k": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "The iteration and the closed form must agree. The closed form is only valid while resistivity is linear in temperature; running both means a future non-linear term shows up as a disagreement instead of the closed form quietly continuing to be reported."
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "uncoupled": {
+      "type": "object",
+      "required": [
+        "temperature_c"
+      ],
+      "description": "What the previous, uncoupled calculation reports: resistance at 20 C, one step, done. Kept alongside rather than replaced, because the difference is the size of the error the toolchain has been carrying and that is more useful than a silent fix.",
+      "properties": {
+        "temperature_c": {
+          "type": "number"
+        },
+        "coupling_error_k": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "maximum_stable_current_a": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "The current at which the loop gain reaches 1. NOT a rating: it is where the coupled model stops having a solution, which sits well above the current at which a sane design has already failed on temperature."
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "applied",
+        "verdict"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "value",
+              "limit",
+              "within"
+            ],
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "within": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NO_COVERAGE"
+          ],
+          "description": "The ACCEPTANCE axis, separate from the top-level status. PASS/FAIL only when a criterion was actually applied to a trustworthy value; NO_COVERAGE when none was supplied. The top-level status answers 'did the computation complete', which is why an ungated run can be GREEN there and NO_COVERAGE here. A threshold nobody stated cannot have been met."
+        },
+        "verdict_reason": {
+          "type": "string",
+          "description": "Why the acceptance verdict is NO_COVERAGE. Present exactly when no criterion was applied or the value was not trustworthy."
+        }
+      },
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": true
+}

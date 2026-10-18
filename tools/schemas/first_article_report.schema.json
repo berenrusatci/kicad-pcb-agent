@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/first-article-report/v1",
+  "title": "ProjectE first-article (as-built) acceptance report",
+  "description": "Output of tools/scripts/production/first_article.py. The gate is not 'were the files produced?' but 'does the board that was actually BUILT conform to the released package?' - the question cpl-assembly's own 'cannot prove' table hands off and nothing used to answer. Only gate.verdict == GREEN opens serial production.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "evidence",
+    "identity",
+    "gate",
+    "coverage",
+    "coverage_by_class",
+    "coverage_ledger",
+    "metrics",
+    "by_check",
+    "checks",
+    "summary",
+    "blockers",
+    "feedback_edges",
+    "parent_receipts",
+    "params"
+  ],
+  "properties": {
+    "schema_version": {"const": "first-article-report/v1"},
+    "tool": {"const": "first_article"},
+    "evidence": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "description": "The FAI evidence document this report read, with its digest. sha256 is null when the report was produced in-process rather than from a file - loud, not absent: a report that cannot be tied to its input is SCREEN_ONLY however good its contents.",
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "sha256": {"oneOf": [{"type": "string", "pattern": "^[0-9a-f]{64}$"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "board_revision",
+        "lot",
+        "work_order",
+        "unit_serial",
+        "released_package_revision",
+        "released_package_sha256",
+        "built_from_package_sha256",
+        "package_binding"
+      ],
+      "properties": {
+        "board_revision": {"type": ["string", "null"]},
+        "board_hash": {"type": ["string", "null"]},
+        "lot": {"type": ["string", "null"]},
+        "work_order": {"type": ["string", "null"]},
+        "unit_serial": {"type": ["string", "null"]},
+        "assembler": {"type": ["string", "null"]},
+        "released_package_revision": {"type": ["string", "null"]},
+        "released_package_sha256": {"type": ["string", "null"]},
+        "built_from_package_sha256": {"type": ["string", "null"]},
+        "package_binding": {
+          "enum": ["BOUND", "HASH_MISMATCH", "REVISION_MISMATCH", "UNBOUND"],
+          "$comment": "REVISION_MISMATCH -> STALE: good evidence about a different board. HASH_MISMATCH -> RED: same declared revision, different bytes, i.e. a silent substitution. UNBOUND -> CONFIRM: the assembler never said what it built from, and that was NOT assumed to match."
+        }
+      },
+      "additionalProperties": false
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "verdict",
+        "verdict_reasons",
+        "serial_release",
+        "release_meaning",
+        "assurance_loop",
+        "evidence_origin",
+        "closed_by"
+      ],
+      "properties": {
+        "verdict": {
+          "enum": ["GREEN", "RED", "NO_COVERAGE", "CONFIRM", "SCREEN_ONLY", "STALE"],
+          "$comment": "A subset of the closed vocabulary in skills/_shared/coverage-gate.md. NO new verdict is introduced. All five non-GREEN values block serial release equally; the precedence order (STALE > NO_COVERAGE > RED > CONFIRM > SCREEN_ONLY) is copied from gate_receipt.effective_status and only decides which reason is named first."
+        },
+        "verdict_reasons": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "Empty only for GREEN. Reasons for the verdicts that also applied are prefixed [VERDICT], so a reader never has to re-run the gate to find the second blocker."
+        },
+        "serial_release": {
+          "type": "boolean",
+          "$comment": "true if and only if verdict == GREEN. This is the whole authority of this skill: open or hold the serial build."
+        },
+        "release_meaning": {
+          "const": "accepted first article",
+          "$comment": "'Release' is ambiguous across the flow - Gerber release, accepted-first-article release, product release. This field pins which one this report is talking about, so a downstream reader cannot borrow the word for a claim this gate never made."
+        },
+        "assurance_loop": {"type": "array", "items": {"enum": ["L0", "L1", "L2", "L3"]}},
+        "evidence_origin": {
+          "type": "array",
+          "items": {"enum": ["TOOL_REPORT", "LOCAL_POLICY", "AUTHORITATIVE_SOURCE", "DESIGN_ARTIFACT", "PHYSICAL_MEASUREMENT"]}
+        },
+        "closed_by": {
+          "const": "tools/scripts/gate_receipt.py",
+          "$comment": "This tool writes an acceptance receipt; it never validates it. A tool that grades its own receipt is marking its own homework."
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "coverage_by_class": {
+      "type": "object",
+      "description": "Per-class coverage triples for the two populations with their own denominators: the hidden-joint (X-ray) universe and the moisture-sensitive (MSL) universe. Both are derived from the RELEASED PACKAGE, never from the evidence - evidence must not be allowed to shrink its own denominator.",
+      "additionalProperties": {"$ref": "#/$defs/coverage"}
+    },
+    "coverage_ledger": {
+      "type": "object",
+      "required": ["explicitly_excluded", "unaccounted_folded_into_excluded", "class_unrecorded", "excluded_checks"],
+      "properties": {
+        "explicitly_excluded": {
+          "type": "array",
+          "description": "Refdes deliberately taken out of first-article scope by a named decision, each with a reason.",
+          "items": {
+            "type": "object",
+            "required": ["refdes", "reason"],
+            "properties": {
+              "refdes": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1},
+              "approver": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "unaccounted_folded_into_excluded": {
+          "type": "array",
+          "description": "Eligible refdes with NEITHER an inspection record NOR an exclusion. They are folded into coverage.excluded so scanned + excluded == eligible closes, and each one is ALSO raised as an UNACCOUNTED_REFDES violation in as_built_presence. The fold keeps the arithmetic honest; the simultaneous violation stops the fold from reading as a decision. Never one without the other.",
+          "items": {
+            "type": "object",
+            "required": ["refdes", "reason"],
+            "properties": {
+              "refdes": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        },
+        "class_unrecorded": {
+          "type": "object",
+          "description": "The same fold, per class: hidden-joint refdes with no X-ray verdict and moisture-sensitive refdes with no handling record, each with the reason it was folded into that class's `excluded` count. Present so the per-class coverage triples are not the one place in the report where an exclusion has no stated reason.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["refdes", "reason"],
+              "properties": {
+                "refdes": {"type": "string", "minLength": 1},
+                "reason": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "excluded_checks": {
+          "type": "array",
+          "description": "Whole checks taken out of the NO_COVERAGE rollup, with the reason. Only ever an EMPTY POPULATION declared by the released package (no hidden-joint part, no MSL>1 part, unpanelised build, no deviation raised), or an operator's --declare-out-of-scope. An empty population is a fact about the design; zero records over a non-empty population is a gap, and a gap is never excluded here.",
+          "items": {
+            "type": "object",
+            "required": ["check", "reason"],
+            "properties": {
+              "check": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "description": "check name -> violation count, or null when the check measured nothing. Null and not 0, for the reason board_check_report gives: a numeric 0 on an unmeasured check compares equal to a threshold and reports PASS on a check that examined nothing.",
+      "additionalProperties": {
+        "oneOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]
+      }
+    },
+    "by_check": {
+      "type": "object",
+      "description": "check name -> {status, scanned, violations}. Carries the coverage that `metrics` cannot. `by_check.<name>.status equals PASS` means ran + examined something + clean, because Finding refuses to build a scanned==0 PASS.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "scanned", "violations"],
+        "properties": {
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "scanned": {"type": "integer", "minimum": 0},
+          "violations": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": false
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "blockers": {
+      "type": "array",
+      "description": "Every violation of every FAILed check, in gate-receipt/v1 blocker shape. GREEN is impossible while this list is non-empty - gate_receipt.validate_blockers enforces that independently.",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "feedback_edges": {
+      "type": "array",
+      "description": "Which upstream owner the L2 feedback belongs to, by issue class. This gate classifies and routes; it never edits the upstream artefact.",
+      "items": {"enum": ["cpl-assembly", "dfm", "bom-lifecycle", "cad-assets", "design-checker"]}
+    },
+    "parent_receipts": {
+      "type": "array",
+      "description": "Hash-bound receipts this acceptance rests on, quoted from the evidence document.",
+      "items": {"type": "object"}
+    },
+    "params": {
+      "type": "object",
+      "required": ["rotation_tolerance_deg", "evidence_schema_version", "declared_out_of_scope"],
+      "properties": {
+        "rotation_tolerance_deg": {"type": "number", "minimum": 0},
+        "verified_package_path": {"type": ["string", "null"]},
+        "evidence_schema_version": {"const": "fai-evidence/v1"},
+        "declared_out_of_scope": {
+          "type": ["string", "null"],
+          "$comment": "The reason an operator gave for declaring the first-article gate out of scope. Setting it forces NO_COVERAGE; there is no flag that makes an unrun gate GREEN."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false,
+      "$comment": "scanned + excluded == eligible, scanned <= eligible, violations <= scanned. The rule is enforced in code by common.findings.coverage_rule_violations; first_article refuses to emit a block that breaks it. `violations` counts SCANNED refdes only - an unaccounted refdes is a blocker, not a violation of something that was measured."
+    },
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "HARD RULE, enforced by the tool's design and by test_first_article.py: nothing here is derived from an image. Every acceptance is a structured decision made by a machine (AOI/X-ray) or a named human, carried with a hash-bound locator for the artefact behind it. The tool never opens the locator. An interpretive PHOTO/MANUAL record with no signoff_standard yields SCREEN_ONLY - somebody looked, nobody said what 'good' was - and SCREEN_ONLY does not open serial production. GREEN here is an as-built CONFORMANCE statement and not a reliability qualification: solder metallurgy and long-term joint life cannot be derived from one first article."
+}

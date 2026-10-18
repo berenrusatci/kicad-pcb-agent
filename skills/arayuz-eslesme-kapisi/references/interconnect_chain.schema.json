@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/interconnect-chain/v1",
+  "title": "ProjectE interconnect chain — A'nın fiziksel çıkışı B'nin fiziksel girişine takılır mı",
+  "$comment": "GİRDİ kaydıdır ve bilerek skill-yereldir: bu şema arayuz-eslesme-kapisi'nin kendi sözleşmesidir, ortak bir makbuz değil. ÇIKTI raporu ortaktır ve tools/schemas/interconnect_mating_report.schema.json'da yaşar. ÖNEMLİ: bu dosyada beyan edilen zincir listesi kapının EVRENİ DEĞİLDİR. Evren interface_contract.json'ın gerektirdiği bağlantı kümesinden türer; burada beyan edilenler yalnız o evrende ARANAN kayıtlardır. Beyan listesini payda yapmak, pcb-agent/docs/BULGU-bos-kontrol-temiz-gorunur.md:79-85'teki teardrop vakasının birebir aynısıdır: iki halka beyan edilip üçüncüsü unutulduğunda eligible=2/scanned=2/violations=0 -> GREEN olur ve eksik halka evrene hiç girmez.",
+
+  "type": "object",
+  "required": ["schema_version", "chains"],
+  "additionalProperties": false,
+
+  "properties": {
+    "schema_version": {"const": "interconnect-chain/v1"},
+    "note": {"type": ["string", "null"]},
+    "chains": {
+      "type": "array",
+      "$comment": "BOŞ DİZİ GEÇERLİDİR ve sessiz değildir: hiç zincir beyan edilmemesi scanned=0 demektir ve sonuç NO_COVERAGE'dır (asla GREEN). Zorunlu kapıda NO_COVERAGE birleşik kapıyı RED yapar - pcb-orchestrator/SKILL.md:217-219.",
+      "items": {"$ref": "#/$defs/chain"}
+    }
+  },
+
+  "$defs": {
+    "chain": {
+      "type": "object",
+      "required": ["chain_id", "contract_ref", "nodes", "interconnects"],
+      "additionalProperties": false,
+      "properties": {
+        "chain_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Zincir kimliği bir board path'i OLAMAZ. Ölçüldü: cam-w-og05b10-wired ayrı bir zincir değil, kardeş çizim - aynı netlist (21 net / 163 pin / 17 NC, birebir). Kimlik ARAYÜZE bağlanır, kart dosyasına değil."
+        },
+        "contract_ref": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "EVREN BAĞI. `<yol>#/<pointer>` biçiminde interface_contract.json'daki zorunlu bir bağlantıya işaret eder. Çözülmeyen bir ref CONTRACT_REF_UNRESOLVED'dır ve RED üretir: sözleşmeye bağlanmamış bir zincir, tam olarak 'birinin yazmayı hatırladıkları' kümesidir ve payda olamaz."
+        },
+        "note": {"type": ["string", "null"]},
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/node"}
+        },
+        "interconnects": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/interconnect"}
+        }
+      }
+    },
+
+    "node": {
+      "type": "object",
+      "$comment": "DÜĞÜM BİR PARÇA DEĞİL, İKİ (ya da daha çok) YÜZ TAŞIR. Ölçülmüş gerekçe: CAM-W'nin J101 ve J201'i aynı aile, aynı kart, ama farklı pin ataması (J101 pin 17 = XVCLK, J201 pin 17 = FSYNC; J101 pin 22 = SCL, J201 pin 22 = XSHUTDOWN). Kart tek yüz sayılsaydı bu iç geçiş HİÇ ÖLÇÜLMEZDİ. Kablo için daha kritik: iki ucundaki sıranın düz mü ters mi olduğu tek yüzlü modelde görünmez.",
+      "required": ["node_id", "kind", "faces"],
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "kind": {
+          "enum": ["BOARD", "HOST_BOARD", "COTS_MODULE", "SENSOR_HEAD",
+                   "ADAPTER_BOARD", "PANEL", "UNKNOWN"],
+          "$comment": "Kablo/harness bir düğüm DEĞİLDİR; o bir `medium`'dur (bkz. #/$defs/medium). İki temsil bir şey için ambiguity üretir ve ambiguity eligible'ı keyfî yapar."
+        },
+        "in_repo": {"type": ["boolean", "null"]},
+        "note": {"type": ["string", "null"]},
+        "faces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/face"}
+        },
+        "internal_mappings": {
+          "type": "array",
+          "$comment": "Komşu yüz çifti başına BİR kayıt (faces[i] -> faces[i+1]). Beyan edilmeyen iç geçiş bir ihlaldir, sessizlik değil.",
+          "items": {"$ref": "#/$defs/mapping"}
+        },
+        "provenance": {"$ref": "#/$defs/provenance_map"}
+      }
+    },
+
+    "face": {
+      "type": "object",
+      "$comment": "AYRILABİLİRLİK KRİTERİ: bir geçiş, ancak alet gerektirmeden ayrılıp yeniden takılabiliyorsa düğüm sınırıdır. İşlemsel tanım: `mating_cycles` (connector_spec.schema.json:43-47'deki datasheet_cycles) alanı anlamlı olan her geçiş bir yüzdür. Lehimli/kalıcı geçiş (BGA, SMT pad) yüz DEĞİLDİR - o ecad-varlik-kalifikasyonu'nun alanıdır.",
+      "required": ["face_id", "interface_class"],
+      "additionalProperties": false,
+      "properties": {
+        "face_id": {"type": "string", "minLength": 1},
+        "refdes": {
+          "type": ["string", "null"],
+          "$comment": "Kart üstü bir konnektörse refdes; kart dışı bir modül yüzeyiyse null. Bu kapının evreni netlist refdes'i DEĞİLDİR - konnektor skill'inin evreni odur ve refdes'i olmayan bir kablo o paydaya giremez. Boşluk tam buradadır."
+        },
+        "interface_type": {"type": ["string", "null"]},
+        "interface_class": {
+          "enum": ["WIRE_TO_BOARD", "BOARD_TO_BOARD", "FFC_ZIF", "FPC_ZIF",
+                   "MEZZANINE", "RF_COAX", "TERMINAL_BLOCK", "HEADER",
+                   "CARD_EDGE", "UNKNOWN"]
+        },
+        "gender": {"enum": ["RECEPTACLE", "PLUG", "HERMAPHRODITIC", "UNKNOWN", null]},
+        "mpn": {"type": ["string", "null"]},
+        "manufacturer": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "pitch_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "positions": {"type": ["integer", "null"], "minimum": 1},
+        "contact_face": {
+          "enum": ["TOP", "BOTTOM", "BOTH", "NA", null],
+          "$comment": "Aynalanma otoritesi bu kapıdadır, konnektor'de değil: konnektor tek taraflıdır (kendi kontak yüzünü bilir, karşı tarafınkini bilemez, şeması additionalProperties:false ile karşı tarafı hiç tanımaz). Aynalanma İKİ TARAFLI bir ilişkidir ve tek taraflı kayıtta ifade edilemez."
+        },
+        "pin1_reference": {
+          "type": ["string", "null"],
+          "$comment": "Pin 1'in hangi mekanik datum'a göre olduğu. Hiçbir kart dosyasında yok (ölçüldü) -> geriye dönük doldurma işi; doldurulamayanda null + NO_COVERAGE, uydurma yok."
+        },
+        "numbering_direction": {
+          "enum": ["LEFT_TO_RIGHT", "RIGHT_TO_LEFT", "CW", "CCW", "UNKNOWN", null],
+          "$comment": "Karşılaştırma pin NUMARASI üzerinden DEĞİL, fiziksel kontak konumu üzerinden yapılır: iki üreticinin numaralandırma yönü farklı olabilir."
+        },
+        "accepts_thickness_mm": {"$ref": "#/$defs/nom_tol"},
+        "contact_finish": {"type": ["string", "null"]},
+        "mating_cycles": {
+          "type": ["integer", "null"], "minimum": 0,
+          "$comment": "connector_spec.schema.json'daki datasheet_cycles. Bu alanın ANLAMLI olması bu geçişin bir yüz olduğunun işlemsel tanımıdır."
+        },
+        "stack_height_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "lane_count": {"type": ["integer", "null"], "minimum": 0},
+        "valid_mating_mpns": {"type": "array", "items": {"type": "string"}},
+        "declared_nonmatching": {
+          "type": "boolean", "default": false,
+          "$comment": "Taraf BAKMIŞ, yüz VAR, ve açıkça yanlış olduğunu BEYAN etmiş. Gerçek vaka: proc-a-cv72s/pins/som_cv72s_if.json:9 'gercek SoM pinlerine KARSILIK GELMEZ'. Bu NO_COVERAGE değil (bakıldı), MATCH hiç değil. Kapalı verdict sözlüğüne yeni değer EKLENMEZ: gate.verdict=RED + domain_state=DECLARED_NONMATCHING."
+        },
+        "declared_nonmatching_note": {"type": ["string", "null"]},
+        "pin_map": {"type": "array", "items": {"$ref": "#/$defs/pin"}},
+        "pin_map_source": {"type": ["string", "null"]},
+        "note": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance_map"}
+      }
+    },
+
+    "pin": {
+      "type": "object",
+      "required": ["pin", "net"],
+      "additionalProperties": false,
+      "properties": {
+        "pin": {"type": "string", "minLength": 1},
+        "net": {
+          "type": ["string", "null"],
+          "$comment": "ALIAS TABLOSU YASAKTIR (ecad-varlik-kalifikasyonu:130-133: 'Normalleştirici, yanlış pinin sessizce doğru pine dönüştüğü yerdir'). Karşılaştırma birebirdir: MIPI_D0_P != CSI_D0_P bir İHLALDİR ve çözümü normalleştirme değil, sözleşmenin veya kartın düzeltilmesidir."
+        },
+        "class": {
+          "enum": ["GND", "POWER", "SIGNAL", "DIFF_P", "DIFF_N",
+                   "CLOCK_P", "CLOCK_N", "NC", "UNKNOWN"],
+          "$comment": "R12'nin girdisi. Yanlış pin haritası MIPI'de 'çalışmaz' değil: 3V3 rayının bir D-PHY lane'ine binmesi = sensör/ISP girişinde KALICI HASAR. R6 sessiz açık devre üretir, R12 sessiz hasar - aynı önceliğe konmaz."
+        },
+        "pair": {
+          "type": ["string", "null"],
+          "$comment": "Diferansiyel çift adı (R13). İki DIFF_P aynı `pair`i taşıyorsa DIFFPAIR_SPLIT, P/N yer değiştirirse DIFFPAIR_SWAP."
+        },
+        "note": {"type": ["string", "null"]}
+      }
+    },
+
+    "mapping": {
+      "type": "object",
+      "$comment": "İÇ KENAR. İki sınıf kenar da eligible'a girer: DIŞ (düğüm yüzü <-> komşu düğüm yüzü = fiziksel takılabilirlik) ve İÇ (aynı düğümün / kablonun iki yüzü = kart netlist sürekliliği, kablonun düz-ters eşlemesi).",
+      "required": ["from_face", "to_face"],
+      "additionalProperties": false,
+      "properties": {
+        "from_face": {"type": "string", "minLength": 1},
+        "to_face": {"type": "string", "minLength": 1},
+        "mapping": {
+          "enum": ["straight", "reversed", "custom", null],
+          "$comment": "BEYAN EDİLMEZSE NO_COVERAGE. `custom` beyan eden bir kenar pin_to_pin[] taşımak ZORUNDADIR - 'custom' tek başına bir bilgi değil, bilginin yerinde durduğunun beyanıdır."
+        },
+        "pin_to_pin": {"type": "array", "items": {"$ref": "#/$defs/pair_row"}},
+        "note": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance_map"}
+      }
+    },
+
+    "interconnect": {
+      "type": "object",
+      "$comment": "DIŞ KENAR TAŞIYICISI: iki uç + BİR medium. medium NULLABLE DEĞİLDİR - eksik halkanın görünür olmasının mekanizması budur: eksik halka artık 'hiç var olmayan bir şey' değil, ZORUNLU BİR ALANIN BOŞLUĞU'dur, yani şema düzeyinde görünür.",
+      "required": ["link_id", "endpoints", "medium"],
+      "additionalProperties": false,
+      "properties": {
+        "link_id": {"type": "string", "minLength": 1},
+        "endpoints": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/endpoint"}
+        },
+        "medium": {
+          "oneOf": [{"$ref": "#/$defs/medium"}, {"type": "null"}],
+          "$comment": "null YAZILABİLİR ve yazıldığında sessiz değildir: R1 -> NO_MATED_PART, RED, ve halka RAPORDA ADIYLA görünür. Kenar evrenden DÜŞMEZ - eksik halka scanned kalır ve bir ihlal sayılır. Bu kapının varlık sebebi budur."
+        },
+        "pin_to_pin": {
+          "type": "array",
+          "$comment": "K2'yi çözen çizelge: netin karşı uçta HANGİ FİZİKSEL PİNE düştüğü. R10 bunu ZORUNLU kılar ve imzayı R10+R11 taşır - R4 (pozisyon sayısı) taşımaz. Kanonik kanıt: RPi 5'te CSI ve DSI portları fiziksel olarak ÖZDEŞ (22-pin, 0.5 mm, 11.5 mm) ama kablolar birbirinin yerine geçmez.",
+          "items": {"$ref": "#/$defs/pair_row"}
+        },
+        "note": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance_map"}
+      }
+    },
+
+    "endpoint": {
+      "type": "object",
+      "required": ["node_id", "face_id"],
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "face_id": {"type": "string", "minLength": 1}
+      }
+    },
+
+    "medium": {
+      "type": "object",
+      "$comment": "NİYE ÜÇÜNCÜ BİR BİRİM: FFC/FPC ZIF yuvasının karşı tarafı bir konnektör DEĞİL, kablonun kendisidir. Digi-Key kategori ağacı bunu ayrı kategorilerle kodlar (housings 390 != assemblies 399 != flat flex cables). Bir DIP pin çıkışı ile FFC yuvası arasındaki mesafeyi kapatan tek şey bir cable assembly'dir ve o AYRI BİR BOM KALEMİDİR.",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["FFC_CABLE", "FPC", "ADAPTER_BOARD", "DISCRETE_HARNESS",
+                   "COAX_ASSEMBLY", "DIRECT_MATE", "UNKNOWN"],
+          "$comment": "DIRECT_MATE tek bir eşleşme kenarı üretir ve iç kenarı yoktur (araya giren bir gövde yok). Diğer her kind İKİ eşleşme kenarı + BİR iç kenar üretir: bir kablo iki mating yaratır ve kendi düz/ters eşlemesi ayrı bir sorudur."
+        },
+        "mpn": {"type": ["string", "null"]},
+        "manufacturer": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "pitch_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "conductors": {"type": ["integer", "null"], "minimum": 1},
+        "contact_orientation": {
+          "enum": ["SAME_SIDE", "OPPOSITE_SIDE", "NA", null],
+          "$comment": "SATICI HARFİ ASLA ANAHTAR OLMAZ. Kablo kontak-yüzü tipini adlandıran evrensel standart YOKTUR: Molex A/D, Würth 1/2, Farnell same-sided/opposite-sided, piyasa jargonu A/B - ve MOLEX'TE 'B' DİYE BİR TİP YOKTUR. Satıcı harfi anahtar yapılırsa Molex parçasında sessizce yanlış çalışır. Şema yalnız normalize enum taşır."
+        },
+        "vendor_contact_letter": {
+          "type": ["string", "null"],
+          "$comment": "HAM VERİ, anahtar değil. Yalnız provenans amaçlı yaşar; hiçbir kural bunun üzerinden karar vermez."
+        },
+        "thickness_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "width_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "margin_mm": {"type": ["number", "null"], "minimum": 0},
+        "strip_len_mm": {"type": ["number", "null"], "minimum": 0},
+        "stiffener_face": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {"enum": ["TOP", "BOTTOM", "BOTH", "NONE", null]}
+        },
+        "shielded": {"type": ["boolean", "null"]},
+        "contact_finish": {"type": ["string", "null"]},
+        "mating_cycles": {"type": ["integer", "null"], "minimum": 0},
+        "mapping": {"enum": ["straight", "reversed", "custom", null]},
+        "pin_to_pin": {"type": "array", "items": {"$ref": "#/$defs/pair_row"}},
+        "bom_line": {
+          "type": ["string", "null"],
+          "$comment": "Kablo/adaptör BOM'da yoksa CONFIRM'dir, RED değil (bom-lifecycle MPN seçiminin sahibidir) + L2 kenarı. Ölçülmüş vaka: CAM-W'nin W1 kablosunun BOM satırı YOK - bu bir BULGU'dur, bu kapının düzeltmesi değil."
+        },
+        "note": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance_map"}
+      }
+    },
+
+    "pair_row": {
+      "type": "object",
+      "required": ["from_pin", "to_pin"],
+      "additionalProperties": false,
+      "properties": {
+        "from_pin": {"type": "string", "minLength": 1},
+        "to_pin": {"type": "string", "minLength": 1},
+        "net": {"type": ["string", "null"]},
+        "note": {"type": ["string", "null"]}
+      }
+    },
+
+    "nom_tol": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "nom": {"type": ["number", "null"]},
+        "tol": {"type": ["number", "null"]}
+      }
+    },
+
+    "provenance_map": {
+      "type": ["object", "null"],
+      "$comment": "ALAN BAŞINA beş alanlı provenans (ecad-varlik-kalifikasyonu'nun modeli). Anahtar = provenansı verilen alan adı (ör. 'pitch_mm'). `revision` eksikse en fazla CONFIRM: revizyonsuz bir belge bir BELGE AİLESİNİ adlandırır ve okunan nüsha sonradan geri getirilemez.",
+      "additionalProperties": {"$ref": "#/$defs/source"}
+    },
+
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "locator": {"type": ["string", "null"]},
+        "accessed": {"type": ["string", "null"]},
+        "snapshot_sha256": {"type": ["string", "null"]},
+        "basis": {
+          "enum": ["datasheet", "derived", "local_policy", "vendor_page",
+                   "measured", null],
+          "$comment": "`derived` ve `local_policy` İMZA AÇMAZ: sonuç en iyi SCREEN_ONLY / LOCAL_POLICY'dir, asla GREEN. Türetilmiş bir pitch, datasheet'ten okunmuş bir pitch ile aynı yeşili veremez."
+        }
+      }
+    }
+  }
+}

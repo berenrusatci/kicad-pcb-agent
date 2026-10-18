@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/placement-result/v1",
+  "title": "ProjectE force-directed placement result",
+  "description": "Output of scripts/place/force_directed.py: the SEED placement coordinates, the ratsnest-based clusters, the high-speed keepout zones and the hard acceptance gates. The source module was library-only; its __main__ ran self-tests and printed prose.",
+  "type": "object",
+  "required": ["schema_version", "tool", "input", "model_class", "signoff", "params", "placement", "clusters", "keepouts", "checks", "summary"],
+  "properties": {
+    "schema_version": {"const": "placement-result/v1"},
+    "tool": {"const": "force_directed"},
+    "input": {"type": "string", "minLength": 1, "description": "Path of the positional JSON placement problem."},
+    "model_class": {
+      "const": "seed_placement",
+      "description": "A SEED placement. It knows nothing about 3-D/enclosure keepouts, EMI zones or the layout millimetre rules beyond the constraints it was given."
+    },
+    "signoff": {"const": false},
+    "params": {
+      "type": "object",
+      "required": ["board_width_mm", "board_height_mm", "hierarchical", "trace_width_mm", "max_iterations", "attraction", "repulsion", "convergence_mm", "initial_step_mm"],
+      "properties": {
+        "board_width_mm": {"type": "number", "exclusiveMinimum": 0},
+        "board_height_mm": {"type": "number", "exclusiveMinimum": 0},
+        "hierarchical": {"type": "boolean"},
+        "trace_width_mm": {
+          "type": ["number", "null"],
+          "description": "null means no trace width was supplied, so no 3W keepout gate ran and the keepout check is absent from checks."
+        },
+        "max_iterations": {"type": "integer", "exclusiveMinimum": 0},
+        "attraction": {"type": "number", "minimum": 0},
+        "repulsion": {"type": "number", "minimum": 0},
+        "convergence_mm": {"type": "number", "exclusiveMinimum": 0},
+        "initial_step_mm": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "required": ["coordinates", "iterations", "converged", "last_move_mm", "initial_ratsnest_mm", "final_ratsnest_mm", "improvement_ratio"],
+      "properties": {
+        "coordinates": {
+          "type": "object",
+          "description": "ref -> [x_mm, y_mm]. Deterministic: the same netlist always yields the same coordinates (golden-angle seed, no random).",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number"}
+          }
+        },
+        "iterations": {"type": "integer", "minimum": 0},
+        "converged": {"type": "boolean"},
+        "last_move_mm": {"type": "number", "minimum": 0},
+        "initial_ratsnest_mm": {"type": "number", "minimum": 0},
+        "final_ratsnest_mm": {"type": "number", "minimum": 0},
+        "improvement_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "The only measurable proof that the engine did any work."
+        }
+      },
+      "additionalProperties": false
+    },
+    "clusters": {
+      "type": "array",
+      "description": "Ratsnest-based connected components. An unconnected part is returned as a single-member cluster; it is never silently dropped.",
+      "items": {"type": "array", "items": {"type": "string"}}
+    },
+    "keepouts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["net", "center_mm", "radius_mm", "source_ref", "target_ref"],
+        "properties": {
+          "net": {"type": "string"},
+          "center_mm": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+          "radius_mm": {"type": "number", "exclusiveMinimum": 0},
+          "source_ref": {"type": "string", "description": "A keepout's own endpoints never count as violators of it."},
+          "target_ref": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"enum": ["courtyard_overlap", "distance_constraints", "high_speed_keepout_violation"]},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned == 0 MUST yield status NO_COVERAGE, never PASS - an empty constraint list can never silently become 'the constraints are met'. Exit code is 1 for NO_COVERAGE as well as FAIL."
+}

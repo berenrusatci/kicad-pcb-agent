@@ -1,0 +1,108 @@
+{
+  "schema_version": "pcb-context-pack/v1",
+  "task": {
+    "id": "FIXTURE-T1",
+    "objective": "Run the committed context-pack integration fixture",
+    "scope": [
+      "synthetic contract verification"
+    ],
+    "non_goals": [
+      "modify a PCB or schematic"
+    ],
+    "decision_ids": [
+      "FIXTURE-D1"
+    ],
+    "owner_skill": "decompose-pcb-decisions",
+    "mutation_policy": "read_only",
+    "allowed_actions": [
+      "read fixture artifacts",
+      "run declared validator"
+    ],
+    "forbidden_actions": [
+      "write board",
+      "write schematic"
+    ]
+  },
+  "budget": {
+    "max_files": 3,
+    "max_bytes": 20000,
+    "_note": "Back to 20000. It had been raised to 40000 only because config/tool_registry.json was 24 kB of a 25 kB pack, and it filled again at 67 tools - the budget was tracking the size of the TOOLCHAIN, not the size of the decision. The tool_registry role is now exempt from the byte budget in context_pack.py (still bound by SHA-256, and both totals are reported as budget.budgeted_bytes and budget.exempt_bytes), so this number once again constrains the decision context it was written for. See docs/CONSOLIDATION-NOTES.md 'Open decisions'."
+  },
+  "artifacts": [
+    {
+      "role": "design_intent",
+      "path": "tools/fixtures/context_pack/projecte_ready/design_intent.json",
+      "sha256": "a53ec719705c5b3537e36802b9ca2f5a5b79ccec285ce5b72ae0492165dba712",
+      "required": true,
+      "purpose": "Provide frozen intent for FIXTURE-D1",
+      "decision_ids": [
+        "FIXTURE-D1"
+      ]
+    },
+    {
+      "role": "decision_unit",
+      "path": "tools/fixtures/context_pack/projecte_ready/decision_units.json",
+      "sha256": "55b5644490c1501ed497483bce9fda5e67cbbc161324d8d203c99c5d0bf20589",
+      "required": true,
+      "purpose": "Provide the atomic decision contract for FIXTURE-D1",
+      "decision_ids": [
+        "FIXTURE-D1"
+      ]
+    },
+    {
+      "role": "tool_registry",
+      "path": "config/tool_registry.json",
+      "sha256": "23cf92e047165c49d14b2d4d3a13a574aa2c670e9e8a0dd021b956863bb6c39d",
+      "required": true,
+      "purpose": "Bind allowed tools for FIXTURE-D1",
+      "decision_ids": [
+        "FIXTURE-D1"
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "id": "FIXTURE-C1",
+      "statement": "The fixture must remain read-only",
+      "source": "fixture contract"
+    }
+  ],
+  "open_questions": [],
+  "tools": [
+    {
+      "name": "web",
+      "purpose": "Demonstrate registry binding without making a network call",
+      "mode": "read",
+      "preconditions": [
+        "Use primary/official sources for technical claims"
+      ]
+    }
+  ],
+  "output_contract": {
+    "artifact_path": "tools/fixtures/context_pack/projecte_ready/result.json",
+    "schema_version": "decision-result/v1",
+    "required_claim_fields": [
+      "claim_id",
+      "statement",
+      "status",
+      "evidence_ids",
+      "confidence",
+      "scope"
+    ]
+  },
+  "gates": [
+    {
+      "id": "FIXTURE-G1",
+      "validator": {
+        "path": "tools/fixtures/context_pack/projecte_ready/verify_output.py",
+        "sha256": "bca64b248c1a12159941bc748b7543a5a63a7de85ef147fdeb66b1c6d3eb5c9e"
+      },
+      "argv": [
+        "python3",
+        "tools/fixtures/context_pack/projecte_ready/verify_output.py",
+        "tools/fixtures/context_pack/projecte_ready/result.json"
+      ],
+      "expected_exit": 0
+    }
+  ]
+}

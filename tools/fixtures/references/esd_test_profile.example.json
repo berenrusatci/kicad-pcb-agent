@@ -1,0 +1,14 @@
+{
+  "schema_version": "esd-test-profile/v1",
+  "product_standard": null,
+  "edition": null,
+  "port": null,
+  "coupling_method": null,
+  "severity": null,
+  "waveform": null,
+  "setup": null,
+  "locator": null,
+  "accessed": null,
+  "snapshot_sha256": null,
+  "status": "TBD"
+}

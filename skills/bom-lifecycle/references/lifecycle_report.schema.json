@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/lifecycle-report/v1",
+  "title": "ProjectE lifecycle_report / alternates contract",
+  "type": "object",
+  "required": ["schema_version", "supply_checked_at", "provider", "lines", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "lifecycle-report/v1"},
+    "supply_checked_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "$comment": "STALE/RED if older than 7 days before a production quote, STALE if older than 30 days at design review. NULL is allowed and means no supply query happened at all - the contract already contemplates that state via provider.queried_from=\"unavailable\", and a report forced to invent a timestamp would claim a check it never made. A null here is never fresh: it is treated as STALE."
+    },
+    "provider": {
+      "type": "object",
+      "required": ["name", "queried_from"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "queried_from": {
+          "enum": ["main_agent", "subagent", "cache", "unavailable"],
+          "$comment": "Network calls belong to the main agent. A sandboxed subagent silently fabricates."
+        },
+        "api_reachable": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "lines": {"type": "array", "items": {"$ref": "#/$defs/line"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "STALE", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "line": {
+      "type": "object",
+      "required": ["refdes", "mpn", "lifecycle", "risk_score", "sources", "status"],
+      "properties": {
+        "refdes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "mpn": {"type": ["string", "null"]},
+        "manufacturer": {"type": ["string", "null"]},
+        "lifecycle": {"enum": ["Active", "NRND", "EOL", "Obsolete", "Unknown", null]},
+        "risk_score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "$comment": "lifecycle (Active=0 / NRND=0.6 / EOL=1) + stock + single-source + lead-time. >0.5 triggers alternate search."
+        },
+        "stock_qty": {"type": ["integer", "null"], "minimum": 0},
+        "lead_time_weeks": {"type": ["number", "null"], "minimum": 0},
+        "sources": {
+          "type": "array",
+          "$comment": "Critical parts require at least two.",
+          "items": {"type": "string"}
+        },
+        "assembly_gates": {"$ref": "#/$defs/assembly_gates"},
+        "pcn": {"$ref": "#/$defs/pcn"},
+        "dnp": {"type": ["boolean", "null"]},
+        "soft_termination_required": {
+          "type": ["boolean", "null"],
+          "$comment": "Set by the layout side (edge / depanel proximity). A layout decision that constrains the BOM."
+        },
+        "temperature_range_c": {
+          "type": ["array", "null"],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": ["number", "null"]}
+        },
+        "temperature_cross_checked_against_thermal_report": {"type": ["boolean", "null"]},
+        "c_eff_uf": {
+          "type": ["number", "null"],
+          "$comment": "DC-bias derated effective capacitance. Null means TBD; nominal value must never be used for PDN/stability."
+        },
+        "alternates": {"type": "array", "items": {"$ref": "#/$defs/alternate"}},
+        "status": {"enum": ["TBD", "CONFIRM", "STALE", "NO_COVERAGE", "RED", "GREEN"]},
+        "uncovered_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "assembly_gates": {
+      "type": "object",
+      "properties": {
+        "msl_level": {"enum": ["1", "2", "2a", "3", "4", "5", "5a", "6", "unknown", null]},
+        "floor_life_hours": {"type": ["number", "null"], "minimum": 0},
+        "packaging": {"enum": ["reel", "cut_tape", "tray", "tube", "bulk", "unknown", null]},
+        "moq": {"type": ["integer", "null"], "minimum": 0},
+        "true_cost_currency": {"type": ["string", "null"]},
+        "true_cost_moq_times_unit": {
+          "type": ["number", "null"],
+          "$comment": "moq * unit price. A cheap unit price behind a 4000-piece reel is not a cheap line."
+        }
+      },
+      "additionalProperties": false
+    },
+    "pcn": {
+      "type": "object",
+      "required": ["pcn_policy_source", "pcn_id_or_none", "pdn_id_or_none", "last_time_buy", "last_ship"],
+      "properties": {
+        "pcn_policy_source": {"type": ["string", "null"]},
+        "pcn_id_or_none": {"type": ["string", "null"]},
+        "pdn_id_or_none": {"type": ["string", "null"]},
+        "last_time_buy": {"type": ["string", "null"], "format": "date"},
+        "last_ship": {"type": ["string", "null"], "format": "date"},
+        "affects_fit_form_function": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "If pdn_id_or_none is set or lifecycle is EOL and last_time_buy/last_ship are null, the line is RED."
+    },
+    "alternate": {
+      "type": "object",
+      "required": ["mpn", "provenance", "compatibility", "verdict"],
+      "properties": {
+        "mpn": {"type": "string", "minLength": 1},
+        "manufacturer": {"type": ["string", "null"]},
+        "provenance": {"$ref": "#/$defs/provenance"},
+        "compatibility": {"$ref": "#/$defs/compatibility"},
+        "verdict": {
+          "enum": ["CONFIRM", "RED", "GREEN"],
+          "$comment": "GREEN requires explicit manufacturer pin-to-pin compatibility plus an unchanged land pattern. Marketing 'pin-compatible' text is never evidence."
+        },
+        "verdict_reason": {"type": ["string", "null"]},
+        "opens_footprint_feedback": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "source_url",
+        "manufacturer_document_id",
+        "datasheet_revision",
+        "package_code",
+        "package_document_revision",
+        "land_pattern_source",
+        "land_pattern_revision",
+        "density_level_or_mfg_recommended",
+        "zero_rotation_checked"
+      ],
+      "properties": {
+        "source_url": {"type": ["string", "null"]},
+        "manufacturer_document_id": {"type": ["string", "null"]},
+        "datasheet_revision": {"type": ["string", "null"]},
+        "package_code": {"type": ["string", "null"]},
+        "package_document_revision": {"type": ["string", "null"]},
+        "land_pattern_source": {"type": ["string", "null"]},
+        "land_pattern_revision": {"type": ["string", "null"]},
+        "density_level_or_mfg_recommended": {"type": ["string", "null"]},
+        "zero_rotation_checked": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "Any null here caps the alternate at CONFIRM. Never PASS an unsourced or unrevisioned candidate to production."
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["pin_function_and_order", "land_pattern", "abs_max_and_operating", "power_dissipation", "thermal_path"],
+      "properties": {
+        "pin_function_and_order": {"enum": ["same", "different", "unknown"]},
+        "land_pattern": {"enum": ["same", "different", "unknown"]},
+        "abs_max_and_operating": {"enum": ["same_or_better", "worse", "unknown"]},
+        "power_dissipation": {"enum": ["same_or_better", "worse", "unknown"]},
+        "thermal_path": {"enum": ["same_or_better", "worse", "unknown"]},
+        "dielectric": {"type": ["string", "null"], "$comment": "Passives only: X7R/X5R/C0G. Y5V is forbidden."},
+        "v_rated_v": {"type": ["number", "null"]},
+        "case_size": {"type": ["string", "null"]},
+        "msl_changed": {"type": ["boolean", "null"]},
+        "packaging_changed": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "land_pattern = different forces RED plus a footprint/DFM feedback edge."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

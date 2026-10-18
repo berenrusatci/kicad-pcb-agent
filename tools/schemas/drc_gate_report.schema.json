@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/drc-gate-report/v1",
+  "title": "ProjectE DRC/ERC gate report",
+  "description": "Output of scripts/drc_gate.py, the hash-bindable harness that replaced tools/krt/drc.sh. Carries the EXACT kicad-cli argv, the engine identity, and an object census so an empty design cannot read as a clean one.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "mode",
+    "status",
+    "design",
+    "engine",
+    "argv",
+    "exit_code",
+    "started_utc",
+    "finished_utc",
+    "metrics",
+    "census",
+    "coverage",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "drc-gate-report/v1"
+    },
+    "tool": {
+      "const": "drc_gate.py"
+    },
+    "mode": {
+      "enum": [
+        "drc",
+        "erc"
+      ]
+    },
+    "status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NO_COVERAGE"
+      ]
+    },
+    "design": {
+      "$ref": "#/$defs/hashed"
+    },
+    "project_file": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hashed"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "engine": {
+      "type": "object",
+      "required": [
+        "name",
+        "path",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "const": "kicad-cli"
+        },
+        "path": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "MUST contain --exit-code-violations and --severity-all: without them kicad-cli exits 0 on a dirty design and the gate is decorative."
+    },
+    "provenance": {
+      "type": "object",
+      "description": "The two external variables that move a DRC count without the design moving: the engine version and the invocation flags. Lifted out of engine/argv so a consumer does not have to know where each lives. drc_gate.py --compare REFUSES to subtract two reports whose provenance differs or is unknown - a committed baseline of 191 violations was produced by kicad-cli 10.0.5 and read as a design regression against a 10.0.4 run of the same unchanged board.",
+      "required": [
+        "engine_version",
+        "engine_version_source",
+        "argv_signature"
+      ],
+      "properties": {
+        "engine_version": {
+          "type": "string",
+          "description": "MEASURED with `kicad-cli version` at run time, never a constant in the source. An empty string, or the literal 'unknown', means the version could not be measured and any comparison against this artefact is refused."
+        },
+        "engine_version_source": {
+          "type": "string",
+          "description": "How the version was obtained, so a version copied out of the engine's own JSON is not mistaken for one measured from the binary."
+        },
+        "engine_reported_version": {
+          "type": "string",
+          "description": "kicad_version as the engine wrote it into its own report. Recorded beside the measured one so the two can be seen to agree."
+        },
+        "argv_signature": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "argv with the executable, -o OUTPUT and every path-shaped token removed: the part that decides WHAT is counted. --all-track-errors alone moved this repo's board from ~184 to 292 violations, so two runs with different signatures are answering different questions. null means the invocation is unknown (a raw kicad-cli JSON records no command line at all)."
+        }
+      }
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "started_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "violation_count",
+        "error_count",
+        "warning_count",
+        "exclusion_count",
+        "unconnected_count",
+        "parity_difference_count"
+      ],
+      "properties": {
+        "parity_difference_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "null when --schematic-parity was not requested. NOT zero: kicad-cli returns an empty parity list either way, so a 0 would be indistinguishable from a measured clean parity, and anything comparing it against a threshold would report the empty agreement."
+        }
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "severities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "census": {
+      "type": "object",
+      "description": "Objects read from the design file and handed to the engine. The coverage denominator.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "eligible",
+        "scanned",
+        "excluded",
+        "violations",
+        "reason"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "PASS",
+        "FAIL",
+        "NO_COVERAGE"
+      ],
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "kicad_version": {
+      "type": "string"
+    },
+    "violations": {
+      "type": "array"
+    },
+    "exclusions": {
+      "type": "array",
+      "description": "Checks the caller deliberately placed out of scope, each with the reason. Written by --exclude CHECK=REASON. An entry here removes a NO_COVERAGE check from the status rollup and NOTHING ELSE: a measured FAIL still fails the gate, and an exclusion with no reason is refused at the CLI. Absent or empty means the verdict covers every check.",
+      "items": {
+        "type": "object",
+        "required": [
+          "check",
+          "reason"
+        ],
+        "properties": {
+          "check": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "hashed": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "check",
+        "status",
+        "scanned",
+        "violations",
+        "detail"
+      ],
+      "properties": {
+        "check": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NO_COVERAGE"
+          ]
+        },
+        "scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violations": {
+          "type": "array"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned == 0 MUST be NO_COVERAGE. A rule this schema cannot express and drc_gate.py enforces: schematic_parity is reported NO_COVERAGE unless --schematic-parity was passed, because kicad-cli returns an EMPTY parity list without it. status is the MONOTONE rollup over checks[]: FAIL if any check FAILed, else NO_COVERAGE if any non-excluded check was not measured, else PASS. It used to be 'PASS unless something FAILed', so a run without --schematic-parity reported PASS while carrying an explicit schematic_parity NO_COVERAGE."
+}

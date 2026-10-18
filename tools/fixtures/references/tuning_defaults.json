@@ -1,0 +1,57 @@
+{
+  "schema_version": "tuning-defaults/v1",
+  "note": "Screening knobs that used to be literal defaults in function signatures. Moved here for the same reason fab_profiles.json exists: a number written in three places drifts into three different numbers, and the disagreement is silent. Every entry carries the rationale the CODE already stated; where the code stated none, rationale says so rather than inventing one. There is deliberately no built-in fallback - see common/tuning.py.",
+  "decoupling": {
+    "max_distance_mm": {
+      "value": 3.0,
+      "unit": "mm",
+      "rationale": "Datasheet-typical upper bound. VIOLATION threshold: a cap further than this is reported as a finding.",
+      "source": "decoupling_coverage.py's own DEFAULT_MAX_DISTANCE_MM comment: 'a datasheet-typical upper bound'"
+    },
+    "target_distance_mm": {
+      "value": 1.5,
+      "unit": "mm",
+      "rationale": "The tighter placement target. Exceeding it is REPORTED but is not a violation - it is the goal, not the limit.",
+      "source": "same comment: 'a tighter placement target'; was measure_board.py's and ngspice.py's default limit before this file existed"
+    }
+  },
+  "routing": {
+    "rule_multiplier": {
+      "value": 3.0,
+      "unit": "x trace width",
+      "rationale": "The 3W rule: parallel high-speed traces stay >= 3x the trace width apart.",
+      "source": "grid_astar.si_cost_function docstring: 'the standard crosstalk/EMI figure'"
+    },
+    "violation_weight": {
+      "value": 5.0,
+      "unit": "cost units per mm of shortfall",
+      "rationale": "How hard the A* search is pushed away from a 3W shortfall. A search-tuning weight, not a physical quantity.",
+      "source": "no rationale was stated in the code; recorded here as unexplained rather than given an invented one"
+    },
+    "via_cost": {
+      "value": 5.0,
+      "unit": "cost units per via",
+      "rationale": "Extra path cost charged for a layer change, so the router prefers staying on one layer.",
+      "source": "no rationale was stated in the code; grid_astar's _heuristic_3d only notes that GUESSING this number would break A* admissibility"
+    }
+  },
+  "thermal": {
+    "ambient_temp_c": {
+      "value": 25.0,
+      "unit": "C",
+      "rationale": "Reference ambient for the RthetaJA path when no measured case temperature is available.",
+      "source": "no rationale was stated in the code. 25 C is the usual datasheet reference condition, NOT this product's enclosure ambient - a real enclosure figure must replace it before a thermal claim is made."
+    }
+  },
+  "pdn": {
+    "drop_pct_tiers": {
+      "value": [
+        {"max_drop_pct": 2.0, "capacitors_f": [1e-7]},
+        {"max_drop_pct": 5.0, "capacitors_f": [1e-7, 1e-6]},
+        {"max_drop_pct": null, "capacitors_f": [1e-7, 1e-5]}
+      ],
+      "rationale": "Rule-of-thumb tiers answering 'how much extra capacitance for how bad a drop'. null max_drop_pct is the open-ended top tier.",
+      "source": "ngspice.py's own comment: a precise C = I*dt/dV needs transient dI/dt and ESR data that the finding does not carry; a real PDN/ESR analysis must confirm a critical rail"
+    }
+  }
+}

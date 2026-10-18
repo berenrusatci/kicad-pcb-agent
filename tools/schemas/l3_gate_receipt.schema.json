@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/l3-gate-receipt/v1",
+  "title": "ProjectE L3 physical-acceptance gate receipt",
+  "description": "Emitted by tools/scripts/lab/physical_measurement.py alongside physical_measurement_manifest.json. It is DELIBERATELY NOT a gate-receipt/v1: that envelope is the design-time L1 quality gate, whose parsed_metrics leaves are numbers a script derived from artifacts. This receipt answers a different question on a different loop - is there valid PHYSICAL evidence for the required D rows of one accepted unit, and which side of the supplied limit is it on. Conflating them would let a GREEN artifact gate and a GREEN bench campaign occupy the same field, which is exactly the gap this skill was written to close.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "gate_id",
+    "verdict",
+    "signoff",
+    "tool",
+    "unit",
+    "manifest",
+    "assurance_loop",
+    "evidence_origin",
+    "coverage",
+    "rows",
+    "reason_codes",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "l3-gate-receipt/v1"},
+    "gate_id": {"const": "l3-bringup-karakterizasyon"},
+    "verdict": {
+      "$ref": "physical_measurement_manifest.schema.json#/$defs/verdict",
+      "$comment": "The closed vocabulary only. No new verdict is introduced here, and no pre-compliance result reaches GREEN."
+    },
+    "signoff": {
+      "const": false,
+      "description": "This gate closes evidence sufficiency, not certification. An accredited-lab row still needs the accredited lab's own artifact; without it the row is CONFIRM."
+    },
+    "generated_utc": {"type": "string"},
+    "tool": {"type": "object"},
+    "unit": {"$ref": "physical_measurement_manifest.schema.json#/$defs/unit"},
+    "manifest": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false,
+      "$comment": "The receipt is a summary; the manifest is the evidence. A receipt whose manifest digest is null was not written to disk, so nothing downstream can re-read what it summarised."
+    },
+    "assurance_loop": {
+      "type": "array",
+      "items": {"enum": ["L0", "L1", "L2", "L3"]},
+      "contains": {"const": "L3"}
+    },
+    "evidence_origin": {
+      "type": "array",
+      "contains": {"const": "PHYSICAL_MEASUREMENT"},
+      "items": {"type": "string"},
+      "$comment": "Mandatory. coverage-gate.md: a skill that does not publish PHYSICAL_MEASUREMENT cannot close an L3 row even while listing L3 in assurance_loop."
+    },
+    "coverage": {"$ref": "metric_coverage.schema.json"},
+    "domain_state": {
+      "type": "string",
+      "$comment": "The serial campaign stage reached. Separate from verdict on purpose; verdict is the binding field."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "owner", "required", "verdict"],
+        "properties": {
+          "rule_id": {"type": "string", "minLength": 1},
+          "owner": {"type": ["string", "null"]},
+          "required": {"type": "boolean"},
+          "verdict": {"$ref": "physical_measurement_manifest.schema.json#/$defs/verdict"},
+          "reason_code": {"type": ["string", "null"]},
+          "limit_authority": {"$ref": "physical_measurement_manifest.schema.json#/$defs/authority"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "exclusions": {"type": "array"},
+    "reason_codes": {
+      "type": "array",
+      "items": {"$ref": "physical_measurement_manifest.schema.json#/$defs/reason_code"}
+    },
+    "feedback_actions": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "How many L2 edges l3_feedback_actions.json carries. Non-zero with verdict GREEN is impossible: an edge is only opened for a row this gate could not close."
+    },
+    "limits": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

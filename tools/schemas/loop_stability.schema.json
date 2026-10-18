@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/loop-stability/v1",
+  "title": "ProjectE loop-gain stability margins",
+  "description": "Output of tools/scripts/sim/loop_stability.py. It reads a loop-gain response somebody else produced - an AC simulation or a network analyser - and does arithmetic on it. Locating a 0 dB crossing and measuring the phase there is not proprietary, which is what lets this run without a vendor's compensation model in hand; the acceptance thresholds ARE specific, and are therefore inputs rather than numbers invented here.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "models_the_loop",
+    "band_hz",
+    "phase_wraps_removed",
+    "gain_crossings",
+    "phase_crossings",
+    "conditionally_stable",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "loop-stability/v1"},
+    "tool": {"const": "loop_stability"},
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {"const": "simulation"},
+    "models_the_loop": {
+      "const": false,
+      "description": "A regulator vendor's compensation network is theirs and is not reproduced, approximated or guessed. This artifact carries measurements of a response, not a model of one."
+    },
+    "band_hz": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "The swept band. A response that never reaches 0 dB inside it has no margin to report - which is NO_COVERAGE, not a pass, and not an extrapolation problem to solve."
+    },
+    "phase_wraps_removed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Reported as evidence that unwrapping happened. A margin computed from wrapped phase is confidently wrong rather than obviously wrong, because it still lands in a plausible range; a reader looking at the margin alone cannot tell the two apart."
+    },
+    "gain_crossings": {
+      "type": "array",
+      "description": "EVERY 0 dB crossing, not the first. A loop can cross several times and is only as good as its worst crossing; reporting one phase margin discards the rest.",
+      "items": {
+        "type": "object",
+        "required": ["freq_hz", "phase_deg", "phase_margin_deg", "direction", "bracket_hz", "bracket_decades"],
+        "properties": {
+          "freq_hz": {"type": "number"},
+          "phase_deg": {"type": "number"},
+          "phase_margin_deg": {"type": "number"},
+          "direction": {"enum": ["falling", "rising"]},
+          "bracket_hz": {"type": "array", "minItems": 2, "maxItems": 2},
+          "bracket_decades": {
+            "type": "number",
+            "description": "How far apart the samples either side of the crossing were. A crossover printed to four digits from decade-spaced samples is a false precision; the bracket travels with the number so the reader can see it."
+          }
+        }
+      }
+    },
+    "phase_crossings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["freq_hz", "mag_db", "gain_margin_db", "above_unity"],
+        "properties": {
+          "freq_hz": {"type": "number"},
+          "mag_db": {"type": "number"},
+          "gain_margin_db": {"type": "number"},
+          "above_unity": {
+            "type": "boolean",
+            "description": "True when gain is still above 0 dB where phase passes -180 deg. That loop is stable as built and unstable if the gain FALLS - the direction it moves as parts age, as ceramics lose value to DC bias, and at light load. A phase margin taken at crossover cannot see this and looks fine."
+          },
+          "bracket_hz": {"type": "array"}
+        }
+      }
+    },
+    "worst_phase_margin_deg": {"type": ["number", "null"]},
+    "worst_gain_margin_db": {"type": ["number", "null"]},
+    "conditionally_stable": {"type": "boolean"},
+    "budget": {
+      "type": "object",
+      "description": "Acceptance thresholds. Both null means the margins were computed but nothing judged them, and the run is NO_COVERAGE.",
+      "properties": {
+        "min_phase_margin_deg": {"type": ["number", "null"]},
+        "min_gain_margin_db": {"type": ["number", "null"]}
+      }
+    },
+    "sweep": {"type": "string"},
+    "findings": {"type": "array"},
+    "coverage": {"type": "object"}
+  }
+}

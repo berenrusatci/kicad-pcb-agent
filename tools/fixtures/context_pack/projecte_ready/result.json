@@ -1,0 +1,25 @@
+{
+  "schema_version": "decision-result/v1",
+  "evidence": [
+    {
+      "evidence_id": "FIXTURE-E1",
+      "kind": "artifact",
+      "source": "Committed design-intent fixture",
+      "status": "canonical",
+      "path": "tools/fixtures/context_pack/projecte_ready/design_intent.json",
+      "sha256": "a53ec719705c5b3537e36802b9ca2f5a5b79ccec285ce5b72ae0492165dba712"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "FIXTURE-CL1",
+      "statement": "The fixture declares a read-only constraint.",
+      "status": "accepted",
+      "evidence_ids": [
+        "FIXTURE-E1"
+      ],
+      "confidence": "high",
+      "scope": "synthetic context-pack integration fixture"
+    }
+  ]
+}

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/stackup-plan-report/v1",
+  "title": "ProjectE stackup planning report",
+  "description": "Output of scripts/stackup_plan.py: the chosen layer count and role assignment, the attempts it took to get there, and the screening checks run over the design intent. Replaces the archive planner's 47 print() calls, which carried no schema and no machine-readable form at all.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "model_class",
+    "signoff",
+    "input",
+    "status",
+    "params",
+    "plan",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": "stackup-plan-report/v1"},
+    "tool": {"const": "stackup_plan"},
+    "model_class": {"const": "exploratory_closed_form"},
+    "signoff": {"const": false},
+    "input": {"type": "string", "minLength": 1},
+    "board": {"type": ["string", "null"]},
+    "status": {
+      "enum": ["GREEN", "RED", "NO_COVERAGE", "UNRESOLVED"],
+      "description": "GREEN = a layer count satisfied every rule AND every screening check was measured and clean. RED = a plan exists but at least one screening check FAILed. NO_COVERAGE = a plan exists and nothing FAILed, but at least one check had nothing to examine (scanned=0), typically because the intent declares no diff pairs / antennas / crystals / RF traces / thermal items; the status used to be GREEN in exactly this case, which reported 5-8 unmeasured checks as a clean board. UNRESOLVED = no layer count satisfied the constraints within --max-attempts; this is NOT a pass. Only GREEN exits 0."
+    },
+    "params": {
+      "type": "object",
+      "required": ["copper_oz", "delta_t_c", "er_eff", "max_attempts",
+                   "fab_profile"],
+      "properties": {
+        "copper_oz": {"type": "number", "exclusiveMinimum": 0},
+        "delta_t_c": {"type": "number", "exclusiveMinimum": 0},
+        "er_eff": {"type": "number", "exclusiveMinimum": 0},
+        "max_attempts": {"type": "integer", "minimum": 1},
+        "fab_profile": {
+          "type": ["string", "null"],
+          "description": "Key into fixtures/references/fab_profiles.json. null means no fab DFM check was requested; the report then makes no manufacturability claim."
+        }
+      },
+      "additionalProperties": false
+    },
+    "plan": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["layer_count", "layers", "attempts", "warnings", "groups"],
+          "properties": {
+            "layer_count": {"type": "integer", "minimum": 2},
+            "layers": {
+              "type": "array",
+              "minItems": 2,
+              "items": {"$ref": "#/$defs/layer"}
+            },
+            "attempts": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Every layer count tried, with the rule violations that rejected it. The archive printed this and threw it away.",
+              "items": {
+                "type": "object",
+                "required": ["layer_count", "errors"],
+                "properties": {
+                  "layer_count": {"type": "integer", "minimum": 2},
+                  "errors": {"type": "array", "items": {"type": "string"}}
+                },
+                "additionalProperties": false
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Routing notes for a human (e.g. adjacent signal layers must be routed orthogonally). Not gating."
+            },
+            "groups": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array", "items": {"type": "string"}
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "plan_error": {
+      "type": ["string", "null"],
+      "description": "Why no layer count worked. Non-null exactly when status is UNRESOLVED."
+    },
+    "power_trace_widths_mm": {
+      "type": "object",
+      "description": "IPC-2221 SCREENING widths per current-carrying rail, external layer. NOT the IPC-2152 curve set; a first estimate only. Rails with no declared current are absent rather than 0.",
+      "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+    },
+    "checks": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "layer": {
+      "type": "object",
+      "required": ["index", "roles", "note"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 1},
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"enum": ["SIGNAL", "GND", "POWER"]},
+          "description": "Role tokens, in English and machine-comparable. The archive stored a Turkish display string and every rule substring-searched it, so rewording a note could silently disable a return-path check. A two-layer board's outer layer legitimately carries both SIGNAL and POWER."
+        },
+        "note": {
+          "type": "string",
+          "description": "Human-readable Turkish rationale for this layer. Display only; no rule reads it."
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array", "items": {"type": "string"}},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned == 0 MUST yield NO_COVERAGE, never PASS: a design intent that declares no antennas has not passed the antenna keep-out rule, it simply was not examined. The same rule holds for the TOP-LEVEL status, which is why it carries NO_COVERAGE too - the rollup is common.findings.rollup_status, so one unmeasured check can never be averaged away by measured clean ones. UNRESOLVED, NO_COVERAGE and RED all exit 1; only GREEN exits 0. Every value in this report comes from a closed-form or rule-of-thumb screening model (model_class=exploratory_closed_form, signoff=false): controlled impedance needs a 2D/3D field solver against the real fab stackup, creepage needs the current table of the applicable safety standard, and thermal via sizing needs an FEA or the vendor's application note."
+}

@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/decision-units/v1",
+  "title": "ProjectE design_intent + decision_units + context_manifest",
+  "type": "object",
+  "required": ["schema_version", "design_intent", "decision_units", "status"],
+  "properties": {
+    "schema_version": {"const": "decision-units/v1"},
+    "design_intent": {"$ref": "#/$defs/design_intent"},
+    "decision_units": {"type": "array", "items": {"$ref": "#/$defs/unit"}},
+    "context_manifests": {"type": ["array", "null"], "items": {"$ref": "#/$defs/manifest"}},
+    "status": {"enum": ["blocked", "ready", "accepted", "rejected", "TBD", "CONFIRM"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "design_intent": {
+      "type": "object",
+      "required": ["goals", "constraints", "non_goals", "open_questions"],
+      "properties": {
+        "goals": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "Only user-confirmed goals. An unresolved choice is NOT a goal."
+        },
+        "constraints": {"type": "array", "items": {"type": "string"}},
+        "non_goals": {"type": "array", "items": {"type": "string"}},
+        "open_questions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/open_question"},
+          "$comment": "Never silently close a scene/scenario-dependent choice by writing it as a decision."
+        }
+      },
+      "additionalProperties": false
+    },
+    "open_question": {
+      "type": "object",
+      "required": ["question_id", "question", "blocking"],
+      "properties": {
+        "question_id": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "blocking": {
+          "type": "boolean",
+          "$comment": "A blocking question forbids READY for every dependent unit."
+        },
+        "blocks_units": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "unit": {
+      "type": "object",
+      "required": ["decision_id", "question", "owner_skill", "output_contract", "depends_on", "status"],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Exactly ONE testable question. If it needs an 'and', split the unit."
+        },
+        "owner_skill": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Exactly one owner. A unit must not decide power budget AND stackup AND routing."
+        },
+        "output_contract": {
+          "type": "object",
+          "required": ["artifact", "schema"],
+          "properties": {
+            "artifact": {"type": "string", "minLength": 1},
+            "schema": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "IDs only. A unit must never copy another unit's rationale."
+        },
+        "status": {"enum": ["blocked", "ready", "proposed", "accepted", "rejected"]},
+        "accepted_evidence": {"$ref": "#/$defs/accepted_evidence"},
+        "invalidation_trigger": {
+          "type": ["string", "null"],
+          "$comment": "Mandatory when status is accepted: which event reopens this decision."
+        },
+        "supersedes": {"type": ["string", "null"]},
+        "rejected_options": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "required": ["option", "reason"],
+            "properties": {
+              "option": {"type": "string"},
+              "reason": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "requires_human_signoff": {
+          "type": ["boolean", "null"],
+          "$comment": "True for boundaries needing human / field-solver / lab sign-off."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "accepted"}}},
+          "then": {"required": ["accepted_evidence", "invalidation_trigger"]}
+        }
+      ]
+    },
+    "accepted_evidence": {
+      "type": ["object", "null"],
+      "required": ["evidence_ids", "level", "loop"],
+      "properties": {
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"},
+          "$comment": "Typed, hash/locator-bound catalogue IDs. Free text 'datasheet' is not evidence."
+        },
+        "level": {"enum": ["A", "B", "C", "D"]},
+        "loop": {"type": "array", "items": {"enum": ["L0", "L1", "L2", "L3"]}},
+        "measurement_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "goal",
+        "scope",
+        "non_goals",
+        "inputs",
+        "allowed_tools",
+        "write_prohibitions",
+        "expected_output_schema",
+        "gates",
+        "blocking_questions"
+      ],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "goal": {"type": "string", "minLength": 1},
+        "scope": {"type": "string"},
+        "non_goals": {"type": "array", "items": {"type": "string"}},
+        "inputs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/hashed_input"},
+          "$comment": "A file is included because it affects a specific output field, never because it 'might be useful'. Never include raw chat history, the whole vault, other disciplines' skills or old agent reports."
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "Must all be present and available in config/tool_registry.json."
+        },
+        "write_prohibitions": {"type": "array", "items": {"type": "string"}},
+        "expected_output_schema": {"type": ["string", "null"]},
+        "gates": {"type": "array", "items": {"$ref": "#/$defs/gate"}},
+        "blocking_questions": {"type": "array", "items": {"type": "string"}},
+        "budget": {
+          "type": ["object", "null"],
+          "properties": {
+            "max_files": {"type": ["integer", "null"], "minimum": 1},
+            "max_bytes": {"type": ["integer", "null"], "minimum": 1}
+          },
+          "additionalProperties": false,
+          "$comment": "Exceeding the budget means the decomposition is wrong, not the budget."
+        }
+      },
+      "additionalProperties": false
+    },
+    "hashed_input": {
+      "type": "object",
+      "required": ["role", "path", "sha256"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Must stay inside --root. '../' and absolute escapes are ERROR."
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "gate": {
+      "type": "object",
+      "required": ["gate_id", "argv", "expected_exit"],
+      "properties": {
+        "gate_id": {"type": "string", "minLength": 1},
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"},
+          "$comment": "Postflight actually EXECUTES this argv. It must be the real entrypoint, not an inert argument."
+        },
+        "expected_exit": {"type": "integer"},
+        "role": {
+          "enum": ["positive_fixture", "negative_fixture", "gate"],
+          "$comment": "A nonzero expected_exit is only accepted for role=negative_fixture."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "READY only means the minimum context is ready for the task. Accepting worker output requires --postflight and ACCEPTED with effective_status == GREEN."
+}

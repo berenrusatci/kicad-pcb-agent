@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/autoroute-receipt/v1",
+  "title": "autoroute_receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "board_before_sha256",
+    "board_after_sha256",
+    "scratch_path",
+    "locked_nets",
+    "candidate_nets",
+    "engine",
+    "budget",
+    "tracks_before",
+    "tracks_after",
+    "drc_after",
+    "status"
+  ],
+  "$comment": "A routing run is NOT a verdict. This receipt exists so that 'the router finished' can never be read as 'the board is routed correctly': it pins the board hash either side, the nets that were deliberately excluded because a human/highspeed-routing already owned them, the search budget that was in force, and the DRC result measured AFTER the import. Any of engine=none, tracks_after==tracks_before, or a missing drc_after makes the run NO_COVERAGE, never PASS.",
+  "properties": {
+    "schema_version": {"const": "autoroute-receipt/v1"},
+    "board_before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "board_after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scratch_path": {
+      "type": "string",
+      "$comment": "The router runs on a scratch copy. The canonical board is only touched by the orchestrator's atomic promote, and only when this receipt is GREEN."
+    },
+    "locked_nets": {
+      "type": "array",
+      "items": {"type": "string"},
+      "$comment": "Nets the autorouter was FORBIDDEN to touch: differential pairs, length-matched groups, and anything highspeed-routing already routed. None of the three engines carries diff-pair or net-class semantics, so protection is by locking, not by configuration."
+    },
+    "candidate_nets": {"type": "array", "items": {"type": "string"}},
+    "routed_nets": {"type": "array", "items": {"type": "string"}},
+    "unrouted_nets": {
+      "type": "array",
+      "$comment": "Every net the engine could not finish, WITH the reason string the tool reported. An empty list is only meaningful next to a non-empty candidate_nets.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["net", "reason"],
+        "properties": {
+          "net": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "engine": {
+      "type": "string",
+      "enum": ["topological", "grid_astar", "freerouting", "none"],
+      "$comment": "engine=none means no router ran. That is NO_COVERAGE and exits non-zero; it is never a clean board."
+    },
+    "engine_report": {
+      "type": "string",
+      "$comment": "Path to the engine's own JSON report (route-result/v1, topological-route-report/v1 or production-gate-report/v1). The receipt summarises; the engine report is the evidence."
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "tripped"],
+      "$comment": "An unbounded autorouter is not allowed to run. grid_astar is bounded by max_nodes only (no time or bbox budget exists in the code); freerouting is bounded by wall-clock timeout_s plus an immediate kill on any Java exception; topological's search is finite by construction.",
+      "properties": {
+        "kind": {"type": "string", "enum": ["max_nodes", "timeout_s", "finite_by_construction"]},
+        "value": {"type": ["number", "null"]},
+        "tripped": {"type": "boolean"}
+      }
+    },
+    "tracks_before": {"type": "integer", "minimum": 0},
+    "tracks_after": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "Measured on the board, not reported by the importer. ImportSpecctraSES can return True and add zero tracks when the padstacks do not match; tracks_after == tracks_before therefore means NOT routed."
+    },
+    "drc_after": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ran", "violations", "unconnected", "flags"],
+      "$comment": "kicad-cli pcb drc AFTER the import, with --severity-all and --schematic-parity. ran=false forbids PASS.",
+      "properties": {
+        "ran": {"type": "boolean"},
+        "violations": {"type": "integer", "minimum": 0},
+        "unconnected": {"type": "integer", "minimum": 0},
+        "flags": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "locked_nets_untouched": {
+      "type": "boolean",
+      "$comment": "Proven by comparing the geometry of every locked net before and after, not by trusting the lock flag."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["GREEN", "CONFIRM", "RED", "NO_COVERAGE"],
+      "$comment": "GREEN requires: engine != none, tracks_after > tracks_before, unrouted_nets == [], drc_after.ran with 0 violations and 0 unconnected, and locked_nets_untouched == true. Anything else is at most CONFIRM."
+    },
+    "detail": {"type": "string"}
+  }
+}

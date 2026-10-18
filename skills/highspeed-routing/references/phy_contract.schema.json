@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/phy-contract/v1",
+  "title": "ProjectE phy_contract — per-link skew budget derived from UI, never from mm",
+  "type": "object",
+  "required": ["schema_version", "links", "status"],
+  "properties": {
+    "schema_version": {"const": "phy-contract/v1"},
+    "links": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/link"}},
+    "status": {"enum": ["TBD", "CONFIRM", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "link": {
+      "type": "object",
+      "required": [
+        "link_id",
+        "endpoints",
+        "phy_standard",
+        "lane_rate_gbps",
+        "ui_ps",
+        "intra_skew_ps",
+        "inter_skew_ps",
+        "budget_origin",
+        "source_document",
+        "status"
+      ],
+      "properties": {
+        "link_id": {"type": "string", "minLength": 1},
+        "endpoints": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "string"},
+          "$comment": "Each endpoint pair has its OWN budget. A board with two PHY families has two budgets, not one."
+        },
+        "phy_standard": {"type": ["string", "null"]},
+        "phy_revision": {"type": ["string", "null"]},
+        "lane_rate_gbps": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "ui_ps": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "UI_ps = 1000 / lane_rate_Gbps"
+        },
+        "intra_skew_ps": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "inter_skew_ps": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "budget_origin": {
+          "enum": ["endpoint_document", "estimate_ui_fraction", "unknown"],
+          "$comment": "estimate_ui_fraction (<=0.1 UI lane-to-lane, UI/50 intra-pair) is direction-finding only and stays CONFIRM. It is never a DRC limit and never replaces the Sdc/Scd mode-conversion gate."
+        },
+        "source_document": {"type": ["string", "null"]},
+        "rise_time_ps": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "MINIMUM (fastest) edge from the driver datasheet. Typical values do not represent worst case."
+        },
+        "rise_time_source": {"enum": ["datasheet_min", "datasheet_typ", "estimated", "unknown", null]},
+        "f_knee_edge_ghz": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "0.35 / t_r. Drives EMC, stitching pitch and guard-via lambda/20. NOT the channel bandwidth."
+        },
+        "f_nyquist_ghz": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "lane_rate / 2 for NRZ. Drives via-stub resonance margin and S-parameter band. NOT the emission knee."
+        },
+        "mode_conversion_limit": {"type": ["string", "null"]},
+        "channel_includes_connector_or_fpc": {"type": ["boolean", "null"]},
+        "status": {"enum": ["TBD", "CONFIRM", "NO_COVERAGE", "RED", "GREEN"]}
+      },
+      "additionalProperties": false,
+      "$comment": "A link whose budget_origin is not endpoint_document cannot be signed off. Never carry another family's mm-based rule into this contract."
+    }
+  }
+}

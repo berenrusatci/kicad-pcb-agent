@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/interconnect-mating-report/v1",
+  "title": "ProjectE interconnect mating report — takılır mı, ve pinler örtüşür mü",
+  "$comment": "ÇIKTI raporu ortak dizinde yaşar çünkü makbuz zincirinin malıdır (gate_receipt.py bunu tüketir). GİRDİ kaydının şeması skill-yereldir: skills/arayuz-eslesme-kapisi/references/interconnect_chain.schema.json.",
+
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "gate",
+    "domain_state",
+    "coverage",
+    "contract_coverage",
+    "edges",
+    "findings",
+    "inputs",
+    "independence",
+    "limits"
+  ],
+  "additionalProperties": true,
+
+  "properties": {
+    "schema_version": {"const": "interconnect-mating-report/v1"},
+    "tool": {"const": "interconnect_mating"},
+
+    "status": {
+      "$ref": "#/$defs/verdict",
+      "$comment": "KAPALI SÖZLÜK (skills/_shared/coverage-gate.md:84-88, 15 değer). Bir skill bu sözlüğün dışında verdict üretmez."
+    },
+    "effective_status": {"$ref": "#/$defs/verdict"},
+    "gate": {
+      "type": "object",
+      "required": ["verdict"],
+      "additionalProperties": true,
+      "properties": {
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "verdict_reason": {"type": ["string", "null"]},
+        "reasons": {"type": "array", "items": {"type": "string"}}
+      },
+      "$comment": "Aynı raporda gate.verdict ile domain_state birden varsa BAĞLAYICI OLAN gate.verdict'tir. domain_state=CHAIN_COMPLETE bir kapıyı AÇMAZ; kapıyı açan gate.verdict=GREEN'dir ve o da coverage aritmetiğine tabidir."
+    },
+
+    "domain_state": {
+      "enum": ["CHAIN_COMPLETE", "CHAIN_BROKEN", "MEDIUM_UNSPECIFIED",
+               "PINMAP_UNVERIFIED", "DECLARED_NONMATCHING"],
+      "$comment": "AYRI ALAN, kapalı sözlüğe TABİ DEĞİL. 'zincir tam / eksik halka / adaptör tanımsız' üçlüsü gate.verdict'e YAZILAMAZ - okuyucu (ve assertion seçicisi) kapı kararını domain durumundan ayırt edemezse sessiz bir sözleşme ihlali oluşur. Emsal: claim-audit `claim_state`, crosstalk-thinning `domain_state`, phase-dag `workflow_state`."
+    },
+    "domain_state_reasons": {"type": "array", "items": {"type": "string"}},
+
+    "coverage": {
+      "$ref": "#/$defs/metric_coverage",
+      "$comment": "KENAR evreni. eligible interface_contract.json'ın GEREKTİRDİĞİ bağlantı kümesinden türer - beyan edilmiş zincir listesinden DEĞİL. Kenar formülü (dallanma dahil): eligible = Sigma_düğüm (yüz_sayısı - 1) + dış_kenar_sayısı. Düz zincirde 'düğüm - 1'e indirgenir."
+    },
+    "contract_coverage": {
+      "$ref": "#/$defs/metric_coverage",
+      "$comment": "SÖZLEŞME ekseni: kaç zorunlu arayüzün zinciri var. Kenar kapsamıyla aynı sayı DEĞİLDİR ve ikisi de yayımlanır: bir arayüzün zinciri hiç yoksa kenar tarafında 1 asgari kenar görünür, sözleşme tarafında ise o arayüzün adı görünür."
+    },
+    "eligible_derivation": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Paydanın NEREDEN geldiğinin makine-okur kaydı. 'Yanlış populasyondan gelen bir payda, gerçek bir muhafızla aynı yeşili verir' (docs/BULGU-bos-kontrol-temiz-gorunur.md:79-85) - bu blok o paydanın izini sürülebilir kılar."
+    },
+
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"},
+      "$comment": "Her kenar bir kayıt. Kenar sınıfı iki tanedir ve İKİSİ DE eligible'a girer: `mating` (fiziksel takılabilirlik) ve `internal` (kart netlist sürekliliği / kablonun düz-ters eşlemesi)."
+    },
+
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"},
+      "$comment": "common/findings.py Finding şekli. scanned=0 taşıyan bir PASS inşa edilemez (Finding.__init__ reddeder)."
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {"type": ["integer", "null"]},
+      "$comment": "Ölçülmemiş metrik `null`, `0` DEĞİL: bir assertion `metrics.<x> equals 0` yazsa boş bir kontrol 0 == 0 karşılaştırmasıyla PASS raporlardı. Ölçülmemiş büyüklük parsed_metrics'e hiç girmez."
+    },
+    "by_check": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "scanned", "violations"],
+        "properties": {
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "scanned": {"type": "integer", "minimum": 0},
+          "violations": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "İsimle adreslenebilir kapsam. `by_check.<ad>.status equals PASS` tek başına 'koştu + en az bir öğeye baktı + kusur bulmadı' konjonksiyonunu taşır."
+    },
+
+    "rule_coverage": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "scanned", "violations"],
+        "properties": {
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "scanned": {"type": "integer", "minimum": 0},
+          "violations": {"type": "integer", "minimum": 0},
+          "record_only_violations": {"type": "integer", "minimum": 0},
+          "authority": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "KURAL BAŞINA payda. Bulgular kuralları gruplara topluyor (`pin_ortusmesi` R10+R11+R13'ü birlikte sayar), dolayısıyla `metrics.pin_ortusmesi` üzerine yazılmış bir R11 assertion'ı R10'un ihlalleri üzerinden geçer/kalır — ölçmediği bir şeyi iddia eder. Matris satırı başına kendi paydası olmadan `coverage_selector` bağlanamaz ve BULGU-bos-kontrol-temiz-gorunur.md:126-133 uyarınca öyle bir A/B assertion'ı yüklenmemelidir (COVERAGE_UNBOUND). `scanned=0` -> `NO_COVERAGE`: ona bağlı bir assertion coverage kapısında durur ve 'ihlal yok' diye okunamaz. `violations` yalnız signoff/screen_only ihlallerini sayar; `record_only` olanlar kendi alanında görünür ve kapı kapatmaz."
+    },
+
+    "connector_spec_violations": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "connector_spec.json ile zincir kaydının AYNI büyüklük hakkında anlaşmadığı yerler (SPEC_CONTRADICTS_CHAIN) ve zincirde olup connector_spec'te olmayan refdes'ler (REFDES_NOT_IN_CONNECTOR_SPEC). Girdi opsiyoneldir ama SESSİZ DEĞİLDİR: verilmezse CONNECTOR_SPEC_ABSENT cap'i CONFIRM'e kapar ve GREEN üretilemez (coverage-gate.md:21 — eksik kanıt CONFIRM'dür, PASS değildir). Verilirse TÜKETİLİR: beyan edilip hiç okunmayan bir girdi 'declared-but-ungated' kusur sınıfının kendisidir."
+    },
+
+    "excluded_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "reason"],
+        "properties": {
+          "check": {"type": "string"},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "`rollup_status(excluded=...)` KASITLI ve KAYITLI kapsam-dışı bırakma içindir; gerekçesi burada yaşar. Kapsam dışı bir NO_COVERAGE atlanır, kapsam dışı bir FAIL ATLANMAZ: ölçülmüş bir uyuşmazlık sonradan kapsam dışına alınamaz."
+    },
+
+    "rules": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/rule_result"},
+      "$comment": "R1..R20'nin kural başına sonucu. AUTHORITY BURADA YAŞAR: R4 (pozisyon sayısı eşitliği) `screen_only`'dir ve İMZA AÇMAZ - 20=20 geçer ama pin 1 karşı uçta pin 20'ye düşüyorsa zincir yanlıştır. İmzayı R10 (pin_to_pin zorunlu) + R11 (net kimliği) taşır."
+    },
+
+    "excluded_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["edge_id", "reason"],
+        "properties": {
+          "edge_id": {"type": "string"},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "AÇIK gerekçeli --exclude-link <id>:<gerekçe> yalnız. `excluded`, 'bakılmadı'nın kibar hâli değildir (sistem-arayuz-sozlesmesi:150-158'den miras)."
+    },
+    "unjustified_exclusions": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "Gerekçesiz dışlama SİLİNMEZ: öğe taranmaya devam eder, red rapora yazılır ve verdict RED olur. Gerekçesiz istisna yazmak raporu sessizleştirmez, GÜRÜLTÜLENDİRİR."
+    },
+    "unknown_exclusions": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "Evrende OLMAYAN bir kenarı dışlamak paydayı elle küçültme girişimidir: sayılır, aritmetiği bozar ve INVALID_COVERAGE (exit 2) üretir. Aritmetik muhafızının canlı olduğunun kanıtı budur."
+    },
+    "unbound_chains": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "contract_ref'i çözülmeyen zincir. Kenarları scanned'e GİRMEZ (eligible'da yoklar), ama zincir CONTRACT_REF_UNRESOLVED ile raporlanır ve RED üretir."
+    },
+    "unmatched_contract_links": {
+      "type": "array",
+      "items": {"type": "object"},
+      "$comment": "Sözleşmenin gerektirdiği ama hiçbir zincirin bağlanmadığı arayüz. Kenar tarafında 1 asgari kenar olarak eligible'da durur ve MISSING_TRANSITION ile ihlal sayılır - evrenden DÜŞMEZ."
+    },
+
+    "caps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["verdict", "reason"],
+        "properties": {
+          "verdict": {"$ref": "#/$defs/verdict"},
+          "reason": {"type": "string"},
+          "edge_id": {"type": ["string", "null"]},
+          "rule": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      },
+      "$comment": "Bir cap kapı AÇMAZ; koşunun GREEN'den NE KADAR uzakta olduğunu ve niçin olduğunu söyler. CONFIRM > LOCAL_POLICY > SCREEN_ONLY."
+    },
+
+    "l3_handoff": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/l3_row"},
+      "$comment": "Bu kapının KANITLAYAMADIKLARI. Fiziksel takılabilirlik l3_rule_universe.json'a satır YAZILARAK l3-bringup-karakterizasyon'a devredilir; LİMİTİN SAHİBİ BU KAPIDIR, ölçümün değil. owner_skill olarak l3-bringup-karakterizasyon yazılırsa limit SELF_AUTHORED_LIMIT ile reddedilir. Limitsiz satır NO_COVERAGE'dır."
+    },
+
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/artifact"},
+      "$comment": "path + sha256. Hash bağı olmadan rapor ölçtüğü dosyaya bağlanamaz ve üzerine oturan her şey sonsuza kadar SCREEN_ONLY kalır."
+    },
+    "stale": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "--prior ile karşılaştırma. Kapı koştuktan sonra segment kaydı değişirse STALE: ölçüm artık var olmayan bir durum hakkındadır."
+    },
+
+    "independence": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Hangi sayının hangi BELGEDEN okunduğu. Bu kapının paydası ile payı AYRI dosyalardan gelir: payda interface_contract.json'dan, pay interconnect_chain.json'dan. Aynı dosyadan gelirse kapı kendi beyanını kendi beyanıyla karşılaştırır ve bir tautolojiye döner."
+    },
+    "params": {"type": "object", "additionalProperties": true},
+    "phase": {"type": ["string", "null"]},
+    "signoff": {
+      "const": false,
+      "$comment": "PINNED false. Bu kapı iki BELGEYİ karşılaştırır; hiçbir mating kuvveti, hizalama veya aktüatör kilidi ölçmez."
+    },
+    "writes_board": {"const": false},
+    "assurance_loop": {
+      "type": "array",
+      "items": {"enum": ["L0", "L1", "L2"]},
+      "$comment": "L3 YOK. PHYSICAL_MEASUREMENT yayımlamayan bir skill L3 listelese bile o kuralı kapatamaz (coverage-gate.md:75-77)."
+    },
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "limits": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+  },
+
+  "$defs": {
+    "verdict": {
+      "enum": ["GREEN", "RED", "CONFIRM", "SCREEN_ONLY", "LOCAL_POLICY",
+               "SIM_ONLY", "NO_COVERAGE", "INVALID_METRIC", "INVALID_COVERAGE",
+               "INVALID_SPARAM", "INCONCLUSIVE", "STALE",
+               "GEOMETRY_PRECHECK_PASS", "TBD", "API_YOK"]
+    },
+
+    "metric_coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "additionalProperties": true,
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0},
+        "reason": {"type": ["string", "null"]},
+        "source": {"type": ["string", "null"]}
+      },
+      "$comment": "scanned + excluded == eligible; violations <= scanned; scanned <= eligible. scanned=0 NO_COVERAGE'dır, asla GREEN. tools/schemas/metric_coverage.schema.json ile aynı kural; burada ek olarak `reason`/`source` taşınır ki boş bir kapsamın NİÇİN boş olduğu okunabilsin."
+    },
+
+    "edge": {
+      "type": "object",
+      "required": ["edge_id", "edge_class", "status"],
+      "additionalProperties": true,
+      "properties": {
+        "edge_id": {"type": "string", "minLength": 1},
+        "edge_class": {
+          "enum": ["mating", "internal"],
+          "$comment": "`mating` = düğüm yüzü <-> komşu düğüm yüzü (fiziksel takılabilirlik). `internal` = aynı düğümün ya da aynı medium'un iki yüzü (kart netlist sürekliliği / kablonun düz-ters eşlemesi)."
+        },
+        "chain_id": {"type": ["string", "null"]},
+        "contract_link": {"type": ["string", "null"]},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "excluded": {"type": "boolean"},
+        "sides": {"type": "array", "items": {"type": ["object", "null"]}},
+        "medium": {"type": ["object", "null"]},
+        "rule_results": {"type": "array", "items": {"$ref": "#/$defs/rule_result"}},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+        "detail": {"type": ["string", "null"]}
+      }
+    },
+
+    "rule_result": {
+      "type": "object",
+      "required": ["rule", "status", "authority"],
+      "additionalProperties": true,
+      "properties": {
+        "rule": {"type": "string", "minLength": 1},
+        "title": {"type": ["string", "null"]},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "level": {"type": ["string", "null"]},
+        "authority": {
+          "enum": ["signoff", "screen_only", "record_only"],
+          "$comment": "dogrulama-matrisi'nin authority ekseni. `screen_only` bir sayı üretir ama imza kapısını AÇAMAZ; `record_only` yalnız kayda geçer."
+        },
+        "codes": {"type": "array", "items": {"type": "string"}},
+        "edge_id": {"type": ["string", "null"]},
+        "detail": {"type": ["string", "null"]}
+      }
+    },
+
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "check": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      }
+    },
+
+    "l3_row": {
+      "type": "object",
+      "required": ["rule_id", "owner", "measurement_class"],
+      "additionalProperties": true,
+      "properties": {
+        "rule_id": {"type": "string", "minLength": 1},
+        "title": {"type": ["string", "null"]},
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "RED'de L2 kenarının açılacağı skill. Bu kapının yazdığı satırlarda owner bu kapıdır."
+        },
+        "measurement_class": {"type": "string", "minLength": 1},
+        "limit": {
+          "type": ["object", "null"],
+          "$comment": "YOKSA satır NO_COVERAGE'dır. limit.authority.owner_skill ASLA l3-bringup-karakterizasyon olamaz (SELF_AUTHORED_LIMIT)."
+        },
+        "fixture_fields": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "konnektor/SKILL.md:200-203'teki MEVCUT fixture alanları YENİDEN KULLANILIR; yeni ad icat edilmez."
+        }
+      }
+    },
+
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

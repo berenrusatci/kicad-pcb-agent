@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/zpdn-model/v1",
+  "title": "ProjectE zpdn_model contract (board-specific ZPDN declaration + measured correlation)",
+  "type": "object",
+  "required": ["schema_version", "rails", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "zpdn-model/v1"},
+    "rails": {"type": "array", "items": {"$ref": "#/$defs/rail"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "SIM_ONLY", "LOCAL_POLICY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "rail": {
+      "type": "object",
+      "required": [
+        "rail",
+        "band_hz",
+        "z_target_ohm",
+        "z_target_source",
+        "parasitics",
+        "valid_range",
+        "model_id",
+        "correlation",
+        "verdict"
+      ],
+      "properties": {
+        "rail": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Must match the canonical name in rail_tree.json byte for byte. Two dialects are two models."
+        },
+        "band_hz": {
+          "type": "object",
+          "required": ["f_min", "f_max"],
+          "properties": {
+            "f_min": {"type": ["number", "null"], "minimum": 0},
+            "f_max": {"type": ["number", "null"], "minimum": 0}
+          },
+          "additionalProperties": false,
+          "$comment": "Ztarget without a band is not a number. An anti-resonance outside the declared band is 'not looked at', not 'not there'."
+        },
+        "z_target_ohm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "z_target_source": {"$ref": "#/$defs/source"},
+        "i_step_a": {"type": ["number", "null"], "minimum": 0},
+        "di_dt_a_per_s": {"type": ["number", "null"]},
+        "parasitics": {"$ref": "#/$defs/parasitics"},
+        "valid_range": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["quantity", "unit", "min", "max"],
+            "properties": {
+              "quantity": {"type": "string", "minLength": 1},
+              "unit": {"type": "string", "minLength": 1},
+              "min": {"type": ["number", "null"]},
+              "max": {"type": ["number", "null"]}
+            },
+            "additionalProperties": false
+          },
+          "$comment": "Same discipline model-registry enforces: a query outside the envelope is OUT_OF_ENVELOPE -> NO_COVERAGE, never a clamped or extrapolated number. Out of envelope is not a design failure."
+        },
+        "model_id": {
+          "type": ["string", "null"],
+          "$comment": "Id registered with model-registry. An unregistered model carries no authority and its bytes are unpinned."
+        },
+        "z_peaks": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "required": ["f_hz", "z_ohm"],
+            "properties": {
+              "f_hz": {"type": ["number", "null"]},
+              "z_ohm": {"type": ["number", "null"]},
+              "note": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "correlation": {"$ref": "#/$defs/correlation"},
+        "verdict": {
+          "enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "SIM_ONLY", "LOCAL_POLICY", "NO_COVERAGE", "RED", "GREEN"],
+          "$comment": "Without a board-specific model AND a measured correlation the verdict is at most SIM_ONLY."
+        }
+      },
+      "additionalProperties": false
+    },
+    "parasitics": {
+      "type": "object",
+      "required": [
+        "mounting_esl",
+        "plane_spreading",
+        "via_inductance",
+        "mlcc_dc_bias_derating",
+        "esr_vs_frequency",
+        "on_die_capacitance"
+      ],
+      "properties": {
+        "mounting_esl": {"$ref": "#/$defs/term"},
+        "plane_spreading": {"$ref": "#/$defs/term"},
+        "via_inductance": {"$ref": "#/$defs/term"},
+        "mlcc_dc_bias_derating": {"$ref": "#/$defs/term"},
+        "esr_vs_frequency": {"$ref": "#/$defs/term"},
+        "on_die_capacitance": {"$ref": "#/$defs/term"}
+      },
+      "additionalProperties": false,
+      "$comment": "Every term is declared present or absent. A parasitic written as 'absent' is honest; one that is simply missing makes the model look better than it is."
+    },
+    "term": {
+      "type": "object",
+      "required": ["in_model", "basis"],
+      "properties": {
+        "in_model": {"type": ["boolean", "null"]},
+        "basis": {
+          "type": ["string", "null"],
+          "$comment": "Where the value came from: vendor curve, extraction, measurement, or the word 'assumed'. Null while in_model is true is a CONFIRM."
+        },
+        "value": {"type": ["number", "string", "null"]},
+        "unit": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "correlation": {
+      "type": ["object", "null"],
+      "required": ["measured", "tool", "domain", "de_embedded", "band_hz", "residual", "verdict"],
+      "properties": {
+        "measured": {"type": ["boolean", "null"]},
+        "tool": {
+          "type": ["string", "null"],
+          "$comment": "correlate (tools/scripts/sim/correlate.py). This contract defines no new tool."
+        },
+        "domain": {
+          "enum": ["s_parameter_db", "impedance_ohm", "unknown", null],
+          "$comment": "correlate compares magnitude_db / phase_deg / group_delay_ps. Agreement in dB is not reported as a PASS in ohms."
+        },
+        "de_embedded": {
+          "type": ["boolean", "null"],
+          "$comment": "Declared by the caller, never inferred. An undeclared fixture is flagged, not silently charged to the model."
+        },
+        "band_hz": {
+          "type": ["object", "null"],
+          "required": ["f_min", "f_max"],
+          "properties": {
+            "f_min": {"type": ["number", "null"]},
+            "f_max": {"type": ["number", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "shared_points": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "$comment": "Fewer than 8 shared points: correlate refuses rather than averaging noise."
+        },
+        "residual": {
+          "type": ["object", "null"],
+          "properties": {
+            "metric": {"enum": ["magnitude_db", "phase_deg", "group_delay_ps", null]},
+            "rms": {"type": ["number", "null"]},
+            "worst": {"type": ["number", "null"]},
+            "limit": {"type": ["number", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "evidence_producer": {
+          "type": ["string", "null"],
+          "$comment": "The physical measurement is produced by l3-bringup-karakterizasyon. This skill owns the limit, not the measurement (rule-conflicts.md section 9)."
+        },
+        "verdict": {"enum": ["TBD", "CONFIRM", "SIM_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+      },
+      "additionalProperties": false,
+      "$comment": "A small residual means the model and the measurement AGREE, not that either is right. No measurement is NO_COVERAGE: the model is unfalsified, not confirmed."
+    },
+    "source": {
+      "type": ["object", "null"],
+      "required": ["origin", "document_id", "revision", "locator", "accessed", "snapshot_sha256"],
+      "properties": {
+        "origin": {"enum": ["authoritative_source", "local_policy", "unknown"]},
+        "document_id": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "locator": {"type": ["string", "null"]},
+        "accessed": {"type": ["string", "null"], "format": "date"},
+        "snapshot_sha256": {"type": ["string", "null"], "pattern": "^([0-9a-f]{64})?$"}
+      },
+      "additionalProperties": false,
+      "$comment": "A Ztarget without a sourced origin is LOCAL_POLICY and can never be a PASS."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "Every rail with a fast current transient, taken from rail_tree.json - not the rails that happen to have a model."
+        },
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned + excluded == eligible; scanned == 0 is NO_COVERAGE, never GREEN. guc-isil owns the Ztarget/ZPDN LIMIT; the physical measurement that closes it is produced by l3-bringup-karakterizasyon."
+}

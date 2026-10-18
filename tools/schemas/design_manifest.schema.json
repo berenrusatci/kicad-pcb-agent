@@ -1,0 +1,231 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pcb-agent/design-manifest/v1",
+  "title": "PCB tasarim manifestosu — proje-agnostik girdi sozlesmesi (SSOT)",
+  "description": "Bir PCB projesinin donanim kurallari ve tasarim sabitleri. Betikler bu dosyayi OKUR; hicbir betik kendi icinde donanim sayisi tasimaz. Her kural blogu, sayinin NEREDEN geldigini soyleyen bir `src` alani tasimak ZORUNDADIR - kaynaksiz bir sayi bu depoda kural degil, tahmindir.",
+
+  "type": "object",
+  "required": ["$schema", "project", "date", "purpose", "consumers", "derived_files",
+               "mechanical", "stackup", "impedance", "power"],
+  "additionalProperties": false,
+
+  "properties": {
+    "$schema": {"const": "pcb-agent/design-manifest/v1"},
+    "project": {"type": "string", "minLength": 1},
+    "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "revision": {"type": "string"},
+    "purpose": {"type": "string", "minLength": 20},
+    "why": {"type": "string"},
+
+    "consumers": {
+      "description": "Bu manifesti OKUYAN betikler. Bos birakilamaz: tuketicisi olmayan bir SSOT dekorasyondur.",
+      "type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}
+    },
+    "derived_files": {
+      "description": "Bu manifestten URETILEN dosyalar. Muhafiz bunlarin tazeligini sinar; elle duzenlenirlerse degisiklik bir sonraki uretimde sessizce kaybolur.",
+      "type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}
+    },
+
+    "mechanical": {
+      "type": "object",
+      "required": ["board_width_x_mm", "board_height_y_mm", "edge_clearance_ring_mm",
+                   "courtyard_gap_mm", "src"],
+      "properties": {
+        "board_width_x_mm": {"$ref": "#/$defs/positive"},
+        "board_height_y_mm": {"$ref": "#/$defs/positive"},
+        "corner_radius_mm": {"$ref": "#/$defs/nonneg"},
+        "edge_clearance_ring_mm": {"$ref": "#/$defs/nonneg"},
+        "courtyard_gap_mm": {"$ref": "#/$defs/nonneg"},
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      }
+    },
+
+    "stackup": {
+      "type": "object",
+      "required": ["board_thickness_mm", "layer_count", "soldermask_mil", "copper_mil",
+                   "ply_mil", "mil_to_mm", "outer_dielectric_plies",
+                   "prepreg_er", "prepreg_df", "core_er", "core_df", "src"],
+      "properties": {
+        "board_thickness_mm": {"$ref": "#/$defs/positive"},
+        "layer_count": {"type": "integer", "minimum": 1},
+        "soldermask_mil": {"$ref": "#/$defs/positive"},
+        "copper_mil": {"$ref": "#/$defs/positive"},
+        "ply_mil": {
+          "type": "object", "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/positive"}
+        },
+        "mil_to_mm": {"const": 0.0254},
+        "outer_dielectric_plies": {
+          "description": "L1<->L2 dielektrigini olusturan ply'lar. Empedansi BU belirler.",
+          "type": "array", "minItems": 1, "items": {"type": "string"}
+        },
+        "prepreg_er": {"$ref": "#/$defs/positive"},
+        "prepreg_df": {"$ref": "#/$defs/nonneg"},
+        "core_er": {"$ref": "#/$defs/positive"},
+        "core_df": {"$ref": "#/$defs/nonneg"},
+        "surface_finish": {"type": "string"},
+        "surface_finish_src": {"type": "string"},
+        "pressed_stackup_received": {"type": "boolean"},
+        "coupon_ordered": {"type": "boolean"},
+        "material_source_line": {"type": "string"},
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      }
+    },
+
+    "soldermask_optical": {
+      "type": "object",
+      "required": ["epsilon_r", "loss_tangent", "src"],
+      "properties": {
+        "epsilon_r": {"$ref": "#/$defs/positive"},
+        "loss_tangent": {"$ref": "#/$defs/nonneg"},
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      }
+    },
+
+    "impedance": {
+      "type": "object",
+      "required": ["target_ohm", "tolerance_pct", "spec_frequency_hz",
+                   "trace_width_mm", "gap_mm", "src"],
+      "properties": {
+        "target_ohm": {"$ref": "#/$defs/positive"},
+        "tolerance_pct": {"$ref": "#/$defs/positive"},
+        "spec_frequency_hz": {"$ref": "#/$defs/positive"},
+        "pair_pitch_mm": {"$ref": "#/$defs/positive"},
+        "trace_width_mm": {"$ref": "#/$defs/positive"},
+        "gap_mm": {"$ref": "#/$defs/positive"},
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      }
+    },
+
+    "power": {
+      "type": "object",
+      "required": ["delta_t_c", "rho_cu_ohm_m", "rails", "src"],
+      "properties": {
+        "delta_t_c": {"$ref": "#/$defs/positive"},
+        "rho_cu_ohm_m": {"$ref": "#/$defs/positive"},
+        "selected_track_width_mm": {"$ref": "#/$defs/positive"},
+        "selected_track_width_src": {"type": "string"},
+        "ir_drop_probe": {
+          "type": "object",
+          "required": ["net", "track_width_mm", "length_mm"],
+          "properties": {
+            "net": {"type": "string"},
+            "track_width_mm": {"$ref": "#/$defs/positive"},
+            "length_mm": {"$ref": "#/$defs/positive"}
+          }
+        },
+        "rails": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["net", "current_a", "src"],
+            "additionalProperties": false,
+            "properties": {
+              "net": {"type": "string", "minLength": 1},
+              "current_a": {"$ref": "#/$defs/positive"},
+              "src": {"$ref": "#/$defs/src"}
+            }
+          }
+        },
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      }
+    },
+
+    "thermal": {
+      "type": "object",
+      "required": ["ambient_c", "src"],
+      "properties": {
+        "ambient_c": {"type": "number"},
+        "h_conv_w_m2k": {"$ref": "#/$defs/positive"},
+        "jedec_board_w_mm": {"$ref": "#/$defs/positive"},
+        "jedec_board_h_mm": {"$ref": "#/$defs/positive"},
+        "src": {"$ref": "#/$defs/src"},
+        "_note": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+
+    "netclass_policy": {
+      "type": "object",
+      "required": ["design_policy", "classes"],
+      "properties": {
+        "design_policy": {
+          "type": "object",
+          "required": ["min_track_mm", "min_clearance_mm", "min_via_diameter_mm",
+                       "min_via_drill_mm", "src"],
+          "properties": {
+            "min_track_mm": {"$ref": "#/$defs/positive"},
+            "min_clearance_mm": {"$ref": "#/$defs/positive"},
+            "min_via_diameter_mm": {"$ref": "#/$defs/positive"},
+            "min_via_drill_mm": {"$ref": "#/$defs/positive"},
+            "src": {"$ref": "#/$defs/src"}
+          }
+        },
+        "classes": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "priority", "track_width_mm", "clearance_mm",
+                         "via_diameter_mm", "via_drill_mm",
+                         "diff_pair_width_mm", "diff_pair_gap_mm"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "priority": {"type": "integer"},
+              "track_width_mm": {"$ref": "#/$defs/positive"},
+              "clearance_mm": {"$ref": "#/$defs/positive"},
+              "via_diameter_mm": {"$ref": "#/$defs/positive"},
+              "via_drill_mm": {"$ref": "#/$defs/positive"},
+              "diff_pair_width_mm": {"$ref": "#/$defs/positive"},
+              "diff_pair_gap_mm": {"$ref": "#/$defs/positive"},
+              "net_patterns": {"type": "array", "items": {"type": "string"}},
+              "net_patterns_from": {
+                "description": "Net adlarinin BASKA bir sozlesmeden geldigini beyan eder. `net_patterns` ile birlikte kullanilamaz.",
+                "type": "string", "enum": ["interface_contract"]
+              },
+              "note": {"type": "string"},
+              "_why_patterns_from": {"type": "string"}
+            },
+            "oneOf": [
+              {"required": ["net_patterns"], "not": {"required": ["net_patterns_from"]}},
+              {"required": ["net_patterns_from"], "not": {"required": ["net_patterns"]}}
+            ]
+          }
+        },
+        "notes": {"type": "object", "additionalProperties": {"type": "string"}},
+        "src": {"type": "string"}
+      }
+    },
+
+    "emitted_metadata": {
+      "description": "Turetilmis dosyalarin ust bilgisi. Tasarim KURALI degildir; degismesi kartin elektrigini degistirmez.",
+      "type": "object",
+      "additionalProperties": true
+    },
+
+    "datasheet_requirements": {
+      "description": "Parca datasheet'lerinden gelen zorunlu kosullar ve bunlarin kart uzerindeki karsiliklari. Bu bolum PARALEL bir calisma tarafindan gelistiriliyor; sema burada BILEREK gevsek tutulmustur (`additionalProperties: true`) cunku yapiyi dondurmak, henuz sekillenmekte olan bir beyani erken kilitlemek olurdu. Yapisi oturunca daraltilmalidir - o zamana kadar bu bolum SEMA ILE DEGIL, kendi tuketicisiyle dogrulanir.",
+      "type": "object",
+      "additionalProperties": true
+    },
+
+    "palette": {
+      "description": "Sematik tel renkleri / blok diyagram / rapor renk kaynagi. Ayni gerekce: paralel calisma, yapisi oturunca daraltilir.",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+
+  "$defs": {
+    "positive": {"type": "number", "exclusiveMinimum": 0},
+    "nonneg": {"type": "number", "minimum": 0},
+    "src": {
+      "description": "Sayinin kaynagi. Bos ya da yer tutucu olamaz - kaynaksiz sayi kural degildir.",
+      "type": "string", "minLength": 10
+    }
+  }
+}

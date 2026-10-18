@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/rotation-map/v1",
+  "title": "ProjectE rotation_map — versioned, fab-specific, side-aware",
+  "type": "object",
+  "required": ["schema_version", "map_version", "fab", "generated_at", "offsets", "polar_whitelist", "status"],
+  "properties": {
+    "schema_version": {"const": "rotation-map/v1"},
+    "map_version": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "MANDATORY. An unversioned map risks reverse-soldering the entire batch and is RED."
+    },
+    "fab": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "Rotation offsets are fab specific. JLC rotation differs from KiCad."
+    },
+    "generated_at": {"type": "string", "format": "date"},
+    "source_locator": {"type": ["string", "null"]},
+    "offsets": {"type": "array", "items": {"$ref": "#/$defs/offset"}},
+    "polar_whitelist": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/polar_class"},
+      "$comment": "Zero-orientation correction applies ONLY to these classes, never to every package."
+    },
+    "first_article": {"$ref": "#/$defs/first_article"},
+    "status": {"enum": ["TBD", "CONFIRM", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "offset": {
+      "type": "object",
+      "required": ["package", "side", "offset_deg"],
+      "properties": {
+        "package": {"type": "string", "minLength": 1},
+        "side": {
+          "enum": ["top", "bottom", "both"],
+          "$comment": "Bottom side needs X mirror plus a rotation sign check; the offset is not necessarily the same as top."
+        },
+        "offset_deg": {"type": "number"},
+        "mirror_x_on_bottom": {"type": ["boolean", "null"]},
+        "note": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "polar_class": {
+      "type": "object",
+      "required": ["class", "expected_pin1_or_cathode_side"],
+      "properties": {
+        "class": {
+          "enum": ["diode", "led", "electrolytic", "tantalum", "ic_pin1", "connector_pin1", "current_shunt", "esd_array"]
+        },
+        "expected_pin1_or_cathode_side": {
+          "enum": ["left", "right", "top", "bottom", "unknown"],
+          "$comment": "Cross-checked against the CPL angle by check_orientation()."
+        },
+        "packages": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "first_article": {
+      "type": ["object", "null"],
+      "required": ["required", "evidence_id", "board_revision", "approver"],
+      "properties": {
+        "required": {
+          "type": ["boolean", "null"],
+          "$comment": "For the first build, polar/BGA/QFN samples need a pre-assembly orientation image and a first-article check. Series production does not open before this."
+        },
+        "evidence_id": {"type": ["string", "null"]},
+        "board_revision": {"type": ["string", "null"]},
+        "evidence_kind": {"enum": ["photo", "aoi", "test_result", null]},
+        "approver": {"type": ["string", "null"]},
+        "dedicated_fixture_required": {
+          "type": ["boolean", "null"],
+          "default": false,
+          "$comment": "Do not make a dedicated fixture a default requirement."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "CPL rotation is never considered validated by file format alone."
+}

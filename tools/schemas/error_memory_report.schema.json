@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/error-memory-report/v1",
+  "title": "ProjectE error memory report",
+  "description": "Output of scripts/memory/error_memory.py. Retrieval is signature match plus lexical Jaccard overlap; it is NOT embedding-based RAG and is not described as one.",
+  "type": "object",
+  "required": ["schema_version", "action", "report", "store", "kind",
+               "violations_read", "error_classes", "records_in_memory",
+               "entries", "status"],
+  "properties": {
+    "schema_version": {"const": "error-memory-report/v1"},
+    "action": {"enum": ["learn", "suggest"]},
+    "report": {"type": "string", "minLength": 1},
+    "store": {
+      "type": "string", "minLength": 1,
+      "description": "MUST NOT be inside an Obsidian vault; the tool refuses such a path fail-closed."
+    },
+    "kind": {"enum": ["DRC", "ERC", "DFM", "SIMULATION", "OTHER"]},
+    "violations_read": {"type": "integer", "minimum": 0},
+    "error_classes": {"type": "integer", "minimum": 0},
+    "records_in_memory": {"type": "integer", "minimum": 0},
+    "stored": {"type": "integer", "minimum": 0},
+    "matched_classes": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["STORED", "NOTHING_NEW", "MATCHED", "NO_MATCH"]},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["signature", "message"],
+        "properties": {
+          "signature": {"type": "string", "pattern": "^[0-9a-f]{8}$"},
+          "message": {"type": "string", "minLength": 1},
+          "stored": {"type": "boolean"},
+          "matched": {"type": "boolean"},
+          "suggested": {"type": "array"},
+          "already_failed": {
+            "type": "array",
+            "description": "Fixes known to have FAILED. Returned so the agent stops re-trying them; never offered as advice."
+          },
+          "needs_human": {"type": "array"}
+        }
+      }
+    }
+  },
+  "$comment": "error_classes counts DEDUPLICATED signatures: one DRC run can raise the same class forty times at forty coordinates, and forty identical records would break retrieval."
+}

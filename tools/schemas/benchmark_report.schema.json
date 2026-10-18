@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/benchmark-report/v1",
+  "title": "ProjectE benchmark and pass-rate report",
+  "description": "Output of tools/scripts/benchmark.py. The three axes - outcome, determinism, coverage - are kept separate on purpose and are never collapsed into a single headline number. 'scope' is required and pinned to tool_invocations so a tool-level pass rate cannot be read as an end-to-end agent success rate; the agent's tool CHOICE is the stochastic part of this system and this harness does not exercise it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "scope",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "repetitions",
+    "problem_set",
+    "summary",
+    "problems",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "benchmark-report/v1"},
+    "tool": {"const": "benchmark"},
+    "scope": {
+      "const": "tool_invocations",
+      "description": "Pinned. This measures declared argv invocations of individual tools, not the agent choosing them. Widening the scope must be a schema revision, not a quiet relabelling of the same number."
+    },
+    "signoff": {"const": false},
+    "status": {
+      "enum": ["GREEN", "RED", "NO_COVERAGE"],
+      "description": "GREEN requires that every problem in the set was actually measured: ANY uncovered problem (missing tool, absent dependency) makes this NO_COVERAGE. It used to say NO_COVERAGE only when EVERY problem was uncovered, so losing one tool out of twenty still read GREEN."
+    },
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": ["NOTHING_COVERED", "PROBLEM_UNCOVERED",
+                 "NONDETERMINISTIC_TOOL", "PROBLEM_FAILED",
+                 "PASS_RATE_BELOW_MINIMUM"],
+        "description": "NOTHING_COVERED = the harness measured nothing at all. PROBLEM_UNCOVERED = it measured part of the set and lost the rest; summary.uncovered_ids names them."
+      }
+    },
+    "repetitions": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "At least 2: a single run cannot detect nondeterminism, which is the property this harness exists to measure."
+    },
+    "problem_set": {"type": "string", "minLength": 1},
+    "problem_set_metadata": {"type": "object", "additionalProperties": true},
+    "summary": {
+      "type": "object",
+      "required": ["problems", "covered_problems", "fully_passing",
+                   "failing", "nondeterministic", "determinism_unknown"],
+      "properties": {
+        "problems": {"type": "integer", "minimum": 1},
+        "covered_problems": {"type": "integer", "minimum": 0},
+        "uncovered_problems": {"type": "integer", "minimum": 0},
+        "fully_passing": {"type": "integer", "minimum": 0},
+        "partially_passing": {"type": "integer", "minimum": 0},
+        "failing": {"type": "integer", "minimum": 0},
+        "nondeterministic": {"type": "integer", "minimum": 0},
+        "nondeterministic_ids": {"type": "array", "items": {"type": "string"}},
+        "determinism_unknown": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Problems whose tool printed no JSON report, so there was nothing to compare between runs. UNKNOWN is a third state, distinct from nondeterministic: collapsing the two flagged 20 well-behaved self-tests as defective on the first real run."
+        },
+        "determinism_unknown_ids": {"type": "array", "items": {"type": "string"}},
+        "uncovered_ids": {"type": "array", "items": {"type": "string"}},
+        "problem_pass_rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of COVERED problems that passed every repetition. Null when nothing was covered - not 0, which would read as total failure."
+        },
+        "by_category": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "problems": {"type": "integer", "minimum": 0},
+              "fully_passing": {"type": "integer", "minimum": 0},
+              "nondeterministic": {"type": "integer", "minimum": 0},
+              "determinism_unknown": {"type": "integer", "minimum": 0},
+              "uncovered": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": true
+          }
+        },
+        "reason_codes": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0},
+          "description": "Histogram of the reason codes the tools themselves emitted. This is the root-cause view: a failing problem says WHY it failed in the tool's own vocabulary."
+        }
+      },
+      "additionalProperties": true
+    },
+    "heat_map": {
+      "type": "array",
+      "description": "The compact per-problem view: passed-of-covered plus the determinism flag. Structured rows rather than rendered characters, so a consumer can sort and filter it.",
+      "items": {
+        "type": "object",
+        "required": ["id", "passed", "of", "deterministic"],
+        "properties": {
+          "id": {"type": "string"},
+          "category": {"type": "string"},
+          "passed": {"type": "integer", "minimum": 0},
+          "of": {"type": "integer", "minimum": 0},
+          "deterministic": {"type": ["boolean", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "tool", "expect", "runs", "statuses",
+                     "covered_runs", "matched_runs", "pass_rate",
+                     "deterministic"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "tool": {"type": "string", "minLength": 1},
+          "category": {"type": "string"},
+          "expect": {
+            "enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR", "ANY"],
+            "description": "RED and ERROR entries are the fault injections: a problem set of only happy paths cannot tell a working gate from one wired to always pass."
+          },
+          "runs": {"type": "integer", "minimum": 0},
+          "statuses": {"type": "array", "items": {"type": "string"}},
+          "covered_runs": {"type": "integer", "minimum": 0},
+          "matched_runs": {"type": "integer", "minimum": 0},
+          "pass_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+          "coverage_rate": {"type": "number", "minimum": 0, "maximum": 1},
+          "deterministic": {
+            "type": ["boolean", "null"],
+            "description": "null means UNKNOWN - the tool emitted no JSON to compare."
+          },
+          "distinct_fingerprints": {"type": "integer", "minimum": 0},
+          "fingerprint_unreadable": {"type": "boolean"},
+          "duration_ms": {
+            "type": "object",
+            "properties": {
+              "min": {"type": "number", "minimum": 0},
+              "median": {"type": "number", "minimum": 0},
+              "max": {"type": "number", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "reason_codes": {
+            "type": "object",
+            "additionalProperties": {"type": "integer", "minimum": 0}
+          },
+          "note": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": true
+}

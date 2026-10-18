@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/ipc-check-report/v1",
+  "title": "ProjectE IPC rule-engine report envelope",
+  "description": "Shared output shape for the IPC RULE ENGINES (fab_class, dfa). Unlike a calculator these measure supplied observations against a standard's limits, so they carry findings and a verdict. Note that verdict has THREE values: a check that received no observations is NEEDS_HUMAN, not PASS.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "standard",
+    "subject",
+    "params",
+    "checks",
+    "summary",
+    "verdict",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "ipc-check-report/v1"},
+    "tool": {"enum": ["fab_class", "dfa"]},
+    "standard": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was checked — the measurement or placement file path."
+    },
+    "params": {
+      "type": "object",
+      "description": "The effective limits and options, echoed back. Includes the source_note so a number's provenance travels with the verdict.",
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "verdict": {
+      "enum": ["PASS", "FAIL", "NEEDS_HUMAN"],
+      "description": "PASS only when every check was really scanned and clean. NEEDS_HUMAN when any check had zero scope. Exit code 0 is reserved for PASS."
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "description": "Honesty notes, required and non-empty. See ipc_calc_report.schema.json for why."
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many items were examined. scanned == 0 MUST carry status NO_COVERAGE; common.findings.Finding rejects any other combination at construction time."
+        },
+        "violations": {"type": "array", "items": {"type": "object"}},
+        "detail": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"scanned": {"const": 0}}},
+          "then": {"properties": {"status": {"const": "NO_COVERAGE"}}}
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

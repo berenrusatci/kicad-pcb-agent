@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/gate-receipt/v1",
+  "title": "ProjectE quality gate receipt",
+  "description": "Input contract for gate_receipt.py. The Python validator remains authoritative - it enforces cross-field rules JSON Schema cannot express (metric-leaf/semantic 1:1 binding, hash freshness against the filesystem, child-gate reduction, promotion chains). This file documents the structural shape.",
+  "type": "object",
+  "required": [
+    "schema_version", "gate_id", "verdict", "tool", "argv",
+    "started_utc", "finished_utc", "exit_code", "inputs",
+    "parsed_metrics", "metric_semantics", "coverage", "retention"
+  ],
+  "properties": {
+    "schema_version": {"const": "gate-receipt/v1"},
+    "schema": {
+      "type": "string",
+      "deprecated": true,
+      "description": "Legacy alias for schema_version. Accepted read-only and normalised with a warning; a conflict between the two is an ERROR."
+    },
+    "gate_id": {"type": "string", "minLength": 1},
+    "gate_kind": {"type": "string"},
+    "profile": {"type": "string"},
+    "verdict": {"enum": ["GREEN", "PASS", "RED", "FAIL", "NO_COVERAGE", "INVALID_METRIC", "STALE", "ERROR"]},
+    "status": {"type": "string", "description": "Alias for verdict."},
+    "tool": {"$ref": "#/$defs/hashedArtifact"},
+    "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "started_utc": {"type": "string", "format": "date-time"},
+    "finished_utc": {"type": "string", "format": "date-time"},
+    "exit_code": {"type": "integer"},
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "allOf": [
+          {"$ref": "#/$defs/hashedArtifact"},
+          {"required": ["role"], "properties": {"role": {"type": "string"}}}
+        ]
+      }
+    },
+    "config": {"$ref": "#/$defs/hashedArtifactOrList"},
+    "rules": {"$ref": "#/$defs/hashedArtifactOrList"},
+    "parsed_metrics": {
+      "type": "object",
+      "description": "Nested object whose LEAVES must be finite JSON numbers. bool, null, string, array and object leaves are rejected."
+    },
+    "metric_semantics": {"type": ["object", "array"]},
+    "coverage": {"$ref": "metric_coverage.schema.json"},
+    "blockers": {"type": "array"},
+    "child_receipts": {"type": "array"},
+    "retention": {"type": ["object", "array"]},
+    "promotion": {"type": "object"},
+    "fault_injection": {"type": "object"}
+  },
+  "$defs": {
+    "hashedArtifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "role": {"type": "string"},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "hashedArtifactOrList": {
+      "oneOf": [
+        {"$ref": "#/$defs/hashedArtifact"},
+        {"type": "array", "items": {"$ref": "#/$defs/hashedArtifact"}}
+      ]
+    }
+  },
+  "$comment": "Rules this schema CANNOT express, enforced only by gate_receipt.py: every parsed_metrics leaf binds to exactly one metric_semantics record carrying definition/units/distance_semantics/region/sampling_step/geometry_model; every path resolves under --root; hashes must match the current file; DRC/ERC gates without --exit-code-violations and --severity-all are RED regardless of exit code; A-level gates require fault-injection evidence whose expected_failed_metrics are real metric leaves."
+}

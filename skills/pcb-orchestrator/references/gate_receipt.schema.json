@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/gate-receipt/v1",
+  "title": "ProjectE gate_receipt — a gate closes on a machine-readable receipt, never on an LLM saying PASS",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "gate_id",
+    "gate_kind",
+    "verdict",
+    "tool",
+    "argv",
+    "start_utc",
+    "end_utc",
+    "exit_code",
+    "inputs",
+    "parsed_metrics",
+    "metric_semantics",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gate-receipt/v1",
+      "$comment": "Canonical field. The legacy 'schema' field is a read-only alias; a missing field is never inferred and a conflict is ERROR."
+    },
+    "gate_id": {"type": "string", "minLength": 1},
+    "gate_kind": {"enum": ["L0", "L1", "L2", "L3", "combined", "promotion"]},
+    "profile": {"type": ["string", "null"]},
+    "verdict": {
+      "enum": [
+        "GREEN", "RED", "CONFIRM", "SCREEN_ONLY", "LOCAL_POLICY", "SIM_ONLY",
+        "NO_COVERAGE", "INVALID_METRIC", "INVALID_COVERAGE", "STALE", "ERROR"
+      ],
+      "$comment": "Only exit 0 + effective GREEN opens a gate. Exit 1 = RED/NO_COVERAGE/INVALID_METRIC/STALE; exit 2 = contract or runtime error."
+    },
+    "tool": {"$ref": "#/$defs/tool"},
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"},
+      "$comment": "Exact argv. For kicad-cli ERC/DRC gates this MUST include --exit-code-violations, otherwise violations never reach the exit code and the gate emits a false PASS."
+    },
+    "start_utc": {"type": "string", "format": "date-time"},
+    "end_utc": {"type": "string", "format": "date-time"},
+    "exit_code": {"type": "integer"},
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/input"},
+      "$comment": "The next phase does not open until each input sha256 still matches the current artifact hash. This closes the 'gate passed, then the file changed' silent failure."
+    },
+    "config": {"$ref": "#/$defs/hashed_path"},
+    "rules": {"$ref": "#/$defs/hashed_path"},
+    "parsed_metrics": {
+      "type": "object",
+      "$comment": "Every leaf path must bind to a complete semantic entry. Missing, extra or inline+ref conflicting mappings are INVALID_METRIC. A metric leaf is only a finite JSON number (bool excluded)."
+    },
+    "metric_semantics": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": {"$ref": "#/$defs/semantics"}},
+        {"$ref": "#/$defs/semantics_ref"}
+      ]
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1}
+        }
+      },
+      "$comment": "ALIGNED WITH THE VALIDATOR 2026-08-10, in two ways it was wrong before. (1) Items are OBJECTS carrying code+message, not bare strings: tools/scripts/gate_receipt.py::validate_blockers requires both, and a blocker with no code cannot enter reason_codes. (2) `null` is no longer permitted. It used to be, and a literal null made the validator raise TypeError and exit 2 with a traceback instead of reporting the ERROR it had already recorded - a gate that dies is not a gate that said no. The validator is now null-safe as well, but publishing the null form here would keep inviting the shape it refuses. An empty array is how a receipt says 'no blockers'.",
+      "default": []
+    },
+    "child_receipts": {"type": ["array", "null"], "items": {"$ref": "#/$defs/child"}},
+    "fault_injection": {"$ref": "#/$defs/fault_injection"},
+    "promotion": {"$ref": "#/$defs/promotion"},
+    "retention": {"$ref": "#/$defs/retention"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": ["name", "version", "path", "sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": ["string", "null"]},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "required": ["role", "path", "sha256"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Must stay inside --root. '../' and absolute path escapes are ERROR; there is no external allowlist in this version."
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "hashed_path": {
+      "type": ["object", "null"],
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "semantics": {
+      "type": "object",
+      "$comment": "ALIGNED WITH THE VALIDATOR 2026-08-10. This block previously required `metric_definition` and `sampling_step_mm` with `additionalProperties: false`, while tools/scripts/gate_receipt.py (SEMANTIC_FIELDS) requires `definition` and `sampling_step`. No single document satisfied both: a receipt written against this published schema was rejected by the validator with INCOMPLETE_METRIC_SEMANTICS, and one written for the validator was rejected here. Measured while building cad_asset_qualification. The EXECUTABLE side wins, because it is the one that actually closes a gate - a schema no passing receipt can satisfy is documentation, not a contract. `metric_definition` is kept as an accepted alias so existing receipts are not orphaned, but `definition` is what the validator reads.",
+      "required": ["definition", "units", "distance_semantics", "region", "sampling_step", "geometry_model"],
+      "properties": {
+        "definition": {"type": "string", "minLength": 1},
+        "metric_definition": {
+          "type": ["string", "null"],
+          "$comment": "Legacy spelling. Accepted, but NOT read by tools/scripts/gate_receipt.py; publish `definition` as well or the entry is incomplete."
+        },
+        "units": {"type": "string", "minLength": 1},
+        "distance_semantics": {
+          "enum": ["centerline", "edge_gap", "not_applicable"],
+          "$comment": "Presenting centerline as edge-gap is INVALID_METRIC."
+        },
+        "region": {"type": "string", "minLength": 1},
+        "sampling_step": {
+          "$comment": "Required by the validator and never absent: an unsampled metric is not a measured one. Use `not_applicable` when the metric has no spatial sampling."
+        },
+        "sampling_step_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "geometry_model": {
+          "enum": ["true_arc", "chord_approximation", "segment_only", "not_applicable"],
+          "$comment": "Presenting a chord result as arc-aware, or parallelism_coverage as impedance/SI, is INVALID_METRIC."
+        },
+        "tolerance_mm": {"type": ["number", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "semantics_ref": {
+      "type": "object",
+      "required": ["metric_id", "path", "sha256"],
+      "properties": {
+        "metric_id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false,
+      "$comment": "An external semantic ref is ONLY this object. The hash-bound JSON must supply the same metric_id and a complete semantics object, or the gate does not open."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "scanned=0 on a mandatory gate is NO_COVERAGE and turns the combined gate RED unless explicitly marked advisory."
+        },
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0},
+        "advisory": {"type": ["boolean", "null"]},
+        "per_metric": {
+          "type": ["object", "null"],
+          "additionalProperties": {
+            "type": "object",
+            "required": ["eligible", "scanned", "excluded", "violations"],
+            "properties": {
+              "eligible": {"type": "integer", "minimum": 0},
+              "scanned": {"type": "integer", "minimum": 0},
+              "excluded": {"type": "integer", "minimum": 0},
+              "violations": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "$comment": "If present it must cover every metric leaf exactly, and the same invariant holds per row."
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "scanned <= eligible and scanned + excluded == eligible. Inconsistency is INVALID_COVERAGE/RED."
+    },
+    "child": {
+      "type": "object",
+      "required": ["gate_id", "path", "sha256", "verdict", "mandatory"],
+      "properties": {
+        "gate_id": {"type": "string"},
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verdict": {"type": "string"},
+        "mandatory": {"type": "boolean"}
+      },
+      "additionalProperties": false,
+      "$comment": "A parent cannot be GREEN when a mandatory child hash/verdict is stale or the child is RED/INVALID/STALE."
+    },
+    "fault_injection": {
+      "type": ["object", "null"],
+      "required": ["fixture_sha256", "baseline_sha256", "injected_sha256", "command", "expected_exit", "observed_exit", "expected_failures", "observed_failures"],
+      "properties": {
+        "fixture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "baseline_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "injected_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "$comment": "Must differ from baseline_sha256."
+        },
+        "command": {"type": "array", "items": {"type": "string"}},
+        "expected_exit": {"type": "integer"},
+        "observed_exit": {"type": "integer"},
+        "expected_failures": {"type": "array", "items": {"type": "string"}},
+        "observed_failures": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false,
+      "$comment": "An A-level check is not PASS without hash-bound fixture, receipt-bound baseline, a different injected hash, exact command/exit and expected/observed failure IDs bound to parsed metric leaves."
+    },
+    "promotion": {
+      "type": ["object", "null"],
+      "required": ["promotion", "scratch_path", "targets"],
+      "properties": {
+        "promotion": {"enum": ["GREEN", "RED"]},
+        "scratch_path": {"type": "string"},
+        "atomic": {
+          "type": ["boolean", "null"],
+          "$comment": "A GREEN promotion must carry atomic proof (atomic: true or the exact --atomic command)."
+        },
+        "atomic_command": {"type": ["array", "null"], "items": {"type": "string"}},
+        "red_reason_codes": {"type": ["array", "null"], "items": {"type": "string"}},
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "before_sha256", "after_sha256", "current_sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "current_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          },
+          "$comment": "A RED promotion must prove before == after == current for every canonical target. Otherwise the canonical file changed and it is a promotion-contract violation."
+        },
+        "derived_regenerated": {
+          "type": ["array", "null"],
+          "items": {"type": "string"},
+          "$comment": "Zone fill, teardrop, length report and fab outputs are derived and regenerated after promotion."
+        },
+        "irreversible_side_effects": {
+          "type": ["array", "null"],
+          "items": {"type": "string"},
+          "$comment": "Fab RFQ / API calls are logged separately. A file rollback does NOT undo them."
+        }
+      },
+      "additionalProperties": false
+    },
+    "retention": {
+      "type": ["object", "null"],
+      "required": ["policy", "expiry"],
+      "properties": {
+        "policy": {"enum": ["red_full", "green_summary"]},
+        "expiry": {"type": ["string", "null"], "format": "date"},
+        "kept": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false,
+      "$comment": "RED/ERROR/NO_COVERAGE keeps receipt+child+log+scratch. GREEN keeps receipt+hash+summary metric+reproduction command for the audit window."
+    }
+  }
+}

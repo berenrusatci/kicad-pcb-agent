@@ -1,0 +1,7 @@
+{
+  "gap_tolerance_fraction": 0.2,
+  "minimum_main_in_band": 0.49,
+  "profile": "review-2l",
+  "target_edge_gap_mm": 0.22,
+  "target_width_mm": 0.4
+}

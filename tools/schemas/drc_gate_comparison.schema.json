@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/drc-gate-comparison/v1",
+  "title": "ProjectE DRC/ERC comparability verdict",
+  "description": "Output of `drc_gate.py --compare LEFT RIGHT`. Two DRC counts are only a measurement together when the engine version and the invocation flags behind them are both KNOWN and EQUAL. The case that produced this schema: a committed drc.json recorded 191 violations / 21 unconnected under kicad-cli 10.0.5; the same unchanged board under 10.0.4 returned a different number, the board digest was identical, and nothing refused to subtract the two. A difference that cannot be attributed to the design or to the tool is not a measurement.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "verdict",
+    "comparable",
+    "compared_utc",
+    "left",
+    "right",
+    "blockers",
+    "attribution",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "drc-gate-comparison/v1"
+    },
+    "tool": {
+      "const": "drc_gate.py"
+    },
+    "verdict": {
+      "enum": [
+        "COMPARED",
+        "REFUSED"
+      ]
+    },
+    "comparable": {
+      "type": "boolean"
+    },
+    "compared_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "left": {
+      "$ref": "#/$defs/side"
+    },
+    "right": {
+      "$ref": "#/$defs/side"
+    },
+    "blockers": {
+      "type": "array",
+      "description": "Empty exactly when verdict is COMPARED. Every entry is a reason these two numbers may not be subtracted.",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "side",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "UNRECOGNISED_REPORT",
+              "MODE_MISMATCH",
+              "ENGINE_VERSION_UNKNOWN",
+              "ENGINE_VERSION_MISMATCH",
+              "INVOCATION_UNKNOWN",
+              "INVOCATION_MISMATCH"
+            ]
+          },
+          "side": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "design_changed": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "null when either side carries no design digest (a raw kicad-cli report never does), so the delta cannot be pinned on anything."
+    },
+    "attribution": {
+      "enum": [
+        "design",
+        "none_expected",
+        "unknown"
+      ],
+      "description": "What the delta is attributable to. 'design' = the digests differ, which is the legitimate reason to compare. 'none_expected' = the SAME board digest, so any non-zero delta is the run-to-run nondeterminism drc_gate.py::build_argv documents, not progress. 'unknown' = no digest to compare."
+    },
+    "delta": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "right minus left, per metric. MUST be null when verdict is REFUSED: publishing '191 vs 222 = 31' is exactly the unattributable number this tool exists to withhold.",
+      "additionalProperties": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "agreement": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "Only meaningful when attribution is 'none_expected': true when an unchanged design produced identical counts, false when it did not. null otherwise - a design that legitimately changed is neither in nor out of agreement."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "array",
+      "description": "Present when the two reports were read from disk: path plus digest of each, so the verdict is bound to the bytes it was computed from.",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "left",
+              "right"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "side": {
+      "type": "object",
+      "required": [
+        "label",
+        "shape",
+        "engine_version",
+        "argv_signature",
+        "mode",
+        "metrics"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "shape": {
+          "enum": [
+            "drc-gate-report/v1",
+            "kicad-cli-raw",
+            "unrecognised"
+          ]
+        },
+        "engine_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "null when the artefact carries no usable version. Two nulls are two unanswered questions, never one matching answer, so they are refused rather than treated as equal."
+        },
+        "engine_version_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "argv_signature": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "null for a raw kicad-cli report: it records the KiCad version but never the command line, so whether it was produced with --all-track-errors (worth ~100 violations on this repo's board) is unknowable from the file."
+        },
+        "design_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$comment": "Exit codes: 0 comparable and in agreement, 1 comparable and an unchanged design produced two different answers, 2 REFUSED. 2 rather than 1 for a refusal is deliberate and follows common/report_io: 1 means the tool ran and the answer is no, 2 means the tool could not produce an answer. A gate that maps a refusal onto 1 cannot tell a regression from an unanswerable question."
+}

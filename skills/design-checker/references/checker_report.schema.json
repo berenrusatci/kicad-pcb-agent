@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "checker_report.schema.json",
+  "title": "design-checker bulgu raporu",
+  "$comment": "The source skill (pcb-tool-v2 .claude/skills/design-checker) used a private PASS / CONDITIONAL PASS / FAIL vocabulary. This bundle has a CLOSED verdict vocabulary in skills/_shared/coverage-gate.md, so the private one is mapped onto it here instead of running in parallel: PASS->GREEN, CONDITIONAL PASS->CONFIRM, FAIL->RED, plus NO_COVERAGE and STALE which the source had no way to express and therefore silently reported as PASS.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verdict",
+    "board_sha256",
+    "checks",
+    "coverage",
+    "findings",
+    "independence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "checker-report/v1"
+    },
+    "verdict": {
+      "$comment": "Closed vocabulary. A checker that cannot express NO_COVERAGE will report an unexamined board as clean.",
+      "enum": ["GREEN", "CONFIRM", "RED", "NO_COVERAGE", "STALE"]
+    },
+    "board_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "$comment": "The board AS AUDITED. If it differs from the hash the Maker's report was taken against, the verdict is STALE - the audit describes a board that no longer exists."
+    },
+    "schematic_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "independence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["separate_session", "note"],
+      "$comment": "Maker/Checker is a ROLE split. If the same session produced and audited the design, shared-assumption error is unmeasurable and must be stated, not implied away.",
+      "properties": {
+        "separate_session": {"type": "boolean"},
+        "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "scanned", "rerun", "argv", "exit_code"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+          "scanned": {"type": "integer", "minimum": 0},
+          "rerun": {
+            "type": "boolean",
+            "$comment": "false means the Maker's stored report was reused. Reading a report is not auditing; such a check cannot count toward scanned."
+          },
+          "argv": {
+            "type": "array",
+            "items": {"type": "string"},
+            "$comment": "Exact argv, so a reader can see whether --exit-code-violations and --severity-all were present. Without them kicad-cli exits 0 on a dirty board."
+          },
+          "exit_code": {"type": "integer"},
+          "tool_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "scanned", "excluded"],
+      "$comment": "scanned + excluded == eligible, and scanned == 0 is NO_COVERAGE, never GREEN. Same arithmetic as tools/schemas/metric_coverage.schema.json.",
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "excluded_reasons": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "summary", "why_it_matters", "evidence"],
+        "properties": {
+          "severity": {
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            "$comment": "Severity, not count, decides the verdict: one CRITICAL outranks thirty LOW."
+          },
+          "summary": {"type": "string", "minLength": 1},
+          "why_it_matters": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "A finding with no stated consequence cannot be triaged and tends to be dismissed."
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "Path to the measured artifact. A finding asserted without a measurement is a claim, not a finding."
+          },
+          "owner_skill": {"type": "string"},
+          "maker_reported": {
+            "type": "boolean",
+            "$comment": "true = the Maker also saw it; false = a blind spot. The blind-spot count is the actual yield of this skill."
+          }
+        }
+      }
+    },
+    "fault_injection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["performed", "expected_verdict", "observed_verdict"],
+      "$comment": "Proof that the audit is not empty. Inject a known defect and the verdict must turn RED; if it does not, fix the audit, not the board.",
+      "properties": {
+        "performed": {"type": "boolean"},
+        "defect": {"type": "string"},
+        "expected_verdict": {"enum": ["RED"]},
+        "observed_verdict": {"enum": ["GREEN", "CONFIRM", "RED", "NO_COVERAGE", "STALE"]}
+      }
+    },
+    "receipt_path": {"type": ["string", "null"]}
+  }
+}

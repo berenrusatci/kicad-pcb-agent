@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/monte-carlo-report/v1",
+  "title": "ProjectE Monte Carlo tolerance report",
+  "description": "Output of tools/scripts/monte_carlo.py. Every other number in this toolchain is a single-point nominal; this is the only report that carries a DISTRIBUTION. Two fields exist specifically to stop a statistical claim from being read as stronger than it is: 'seed', without which a yield cannot be reproduced and is therefore not evidence, and the Wilson interval on every yield, because 100/100 passing trials is not proof of 100% yield.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "subject",
+    "model_class",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "trials",
+    "seed",
+    "parameters",
+    "parameter_coverage_gaps",
+    "statistics",
+    "gate",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "monte-carlo-report/v1"
+    },
+    "tool": {
+      "const": "monte_carlo"
+    },
+    "subject": {
+      "enum": [
+        "circuit",
+        "impedance"
+      ],
+      "description": "circuit perturbs SPICE component values and re-runs ngspice; impedance perturbs cross-section geometry and propagates through the 2-D field solver."
+    },
+    "model_class": {
+      "enum": [
+        "spice_transient",
+        "numerical_2d_fdm_linearised"
+      ],
+      "description": "The impedance subject is explicitly labelled LINEARISED: it is not the field solver's model class, because the trials are evaluated on a gradient expansion about the nominal rather than solved in full."
+    },
+    "signoff": {
+      "const": false
+    },
+    "status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE"
+      ],
+      "description": "RED means the yield fell below --min-yield. NO_COVERAGE means the study could not be trusted at all: ngspice absent, fewer results than trials, a parameter with a declared DC bias but no derating curve, or a linearisation that disagreed with a full solve by more than the allowed margin."
+    },
+    "effective_status": {
+      "enum": [
+        "GREEN",
+        "RED",
+        "NO_COVERAGE",
+        "ERROR"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "NGSPICE_ABSENT",
+          "TRIAL_COUNT_MISMATCH",
+          "PARAMETER_COVERAGE_GAP",
+          "YIELD_BELOW_MINIMUM",
+          "LINEARISATION_UNRELIABLE",
+          "LINEARISATION_UNCHECKED"
+        ]
+      }
+    },
+    "trials": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "seed": {
+      "type": "integer",
+      "description": "REQUIRED. An unreproducible statistical verdict is not evidence, so the seed travels with the result and the same seed must reproduce the same draws exactly."
+    },
+    "parameters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "nominal",
+          "effective_nominal",
+          "distribution"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nominal": {
+            "type": "number"
+          },
+          "effective_nominal": {
+            "type": "number",
+            "description": "Nominal after any DC-bias derating. It differs from 'nominal' exactly when a vendor curve was supplied."
+          },
+          "distribution": {
+            "enum": [
+              "normal",
+              "normal_from_tolerance",
+              "uniform",
+              "fixed"
+            ]
+          },
+          "sigma": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tolerance_percent": {
+            "type": "number",
+            "minimum": 0
+          },
+          "sigma_divisor": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Present whenever distribution is normal_from_tolerance, and mandatory there: a '1%' part may mean 1 sigma or 3 sigma and the resulting yields differ by orders of magnitude, so the tool refuses to choose."
+          },
+          "minimum": {
+            "type": "number"
+          },
+          "maximum": {
+            "type": "number"
+          },
+          "dc_bias_volts": {
+            "type": "number"
+          },
+          "dc_bias_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the derating curve came from. A curve with no attribution is refused at parse time."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "parameter_coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Parameters that declared a DC bias with no derating curve. Non-empty forces NO_COVERAGE: simulating a class-II ceramic at its printed value under bias would overstate every decoupling result on the board."
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Per watched node. Reported even under NO_COVERAGE - the numbers still describe what was computed, and hiding them makes a coverage gap look like a crash. The GATE is what stays shut.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "count",
+          "mean",
+          "std",
+          "minimum",
+          "maximum",
+          "p01",
+          "p05",
+          "p50",
+          "p95",
+          "p99"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "discarded_non_finite": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mean": {
+            "type": "number"
+          },
+          "std": {
+            "type": "number",
+            "minimum": 0
+          },
+          "minimum": {
+            "type": "number"
+          },
+          "maximum": {
+            "type": "number"
+          },
+          "p01": {
+            "type": "number"
+          },
+          "p05": {
+            "type": "number"
+          },
+          "p50": {
+            "type": "number"
+          },
+          "p95": {
+            "type": "number"
+          },
+          "p99": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "applied",
+        "verdict"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "worst_yield_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "min_yield": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "passes",
+              "trials",
+              "yield_fraction",
+              "yield_ci95_low",
+              "yield_ci95_high"
+            ],
+            "properties": {
+              "lower_limit": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "upper_limit": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "trials": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "yield_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "yield_ci95_low": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "yield_ci95_high": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "failures_below": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failures_above": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NO_COVERAGE"
+          ],
+          "description": "The ACCEPTANCE axis, separate from the top-level status. PASS/FAIL only when a stated criterion was applied to a trustworthy value; NO_COVERAGE when no limits or no --min-yield were supplied. A yield with no minimum to meet has not passed anything."
+        },
+        "verdict_reason": {
+          "type": "string",
+          "description": "Why the acceptance verdict is NO_COVERAGE."
+        }
+      },
+      "additionalProperties": false
+    },
+    "sensitivity_ohm_per_unit": {
+      "type": "object",
+      "description": "impedance subject: d(impedance)/d(parameter) from a finite difference about the nominal.",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "gradient_step_mm": {
+      "type": "object",
+      "description": "The step each finite difference actually used. Reported because a GEOMETRIC step smaller than grid_pitch_mm is quantised away by rasterisation and yields a sensitivity of approximately zero - a measurement that never happened, and a silent one. Geometric steps are floored at a multiple of the pitch.",
+      "additionalProperties": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "grid_pitch_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "field_solves": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Full 2-D solves spent. Far below 'trials' by design: the point of linearising is that thousands of trials cost a handful of solves."
+    },
+    "linearisation_check": {
+      "type": "object",
+      "description": "Full re-solves of randomly chosen sampled geometries, compared against the linear prediction. This is what keeps the leverage honest; without it the speedup would be unfalsifiable.",
+      "properties": {
+        "checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "worst_error_percent": {
+          "type": "number",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string"
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "trial",
+              "linear_ohm",
+              "full_solve_ohm",
+              "error_percent"
+            ],
+            "properties": {
+              "trial": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "linear_ohm": {
+                "type": "number"
+              },
+              "full_solve_ohm": {
+                "type": "number"
+              },
+              "error_percent": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "nominal_impedance_ohm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "nominal_geometry": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ngspice_version": {
+      "type": "string"
+    },
+    "detail": {
+      "type": "string"
+    },
+    "ngspice_stderr_tail": {
+      "type": "string"
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": true
+}

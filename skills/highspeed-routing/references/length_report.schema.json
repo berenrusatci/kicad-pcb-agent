@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/length-report/v1",
+  "title": "ProjectE routing reports (length / coupling / reference / escape)",
+  "type": "object",
+  "required": ["schema_version", "report_kind", "board_sha256", "metrics", "coverage", "status"],
+  "properties": {
+    "schema_version": {"const": "length-report/v1"},
+    "report_kind": {"enum": ["length", "coupling", "reference", "escape"]},
+    "board_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "$comment": "Derived artifact. Any board write invalidates this report; it must be regenerated from the current board hash."
+    },
+    "tool": {"$ref": "#/$defs/tool"},
+    "metrics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/metric"}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {
+      "enum": [
+        "TBD", "CONFIRM", "SCREEN_ONLY", "GEOMETRY_PRECHECK_PASS",
+        "INCONCLUSIVE", "INVALID_METRIC", "INVALID_SPARAM",
+        "NO_COVERAGE", "RED", "GREEN"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": ["name", "version", "sha256", "argv"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "argv": {"type": "array", "items": {"type": "string"}},
+        "exit_code": {"type": ["integer", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "metric": {
+      "type": "object",
+      "required": ["metric_id", "net_or_pair", "semantics", "measured", "units", "verdict"],
+      "properties": {
+        "metric_id": {"type": "string", "minLength": 1},
+        "net_or_pair": {"type": "string", "minLength": 1},
+        "region": {
+          "enum": ["escape", "launch", "pad", "main", "whole", null],
+          "$comment": "Launch/pad/main regions must be measured separately; merging them hides the discontinuity budget."
+        },
+        "semantics": {"$ref": "#/$defs/semantics"},
+        "limit": {"type": ["number", "null"]},
+        "measured": {"type": ["number", "null"]},
+        "units": {"type": "string", "minLength": 1},
+        "uncertainty": {"type": ["number", "null"], "minimum": 0},
+        "guard_band": {"type": ["number", "null"], "minimum": 0},
+        "calibration_id": {"type": ["string", "null"]},
+        "verdict": {
+          "enum": [
+            "PASS", "FAIL", "CONFIRM", "SCREEN_ONLY", "GEOMETRY_PRECHECK_PASS",
+            "INCONCLUSIVE", "INVALID_METRIC", "NO_COVERAGE"
+          ],
+          "$comment": "If the margin falls inside uncertainty + guard_band, PASS must not be emitted."
+        },
+        "verdict_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "semantics": {
+      "type": "object",
+      "required": ["metric_definition", "distance_semantics", "geometry_model"],
+      "properties": {
+        "metric_definition": {"type": "string", "minLength": 1},
+        "distance_semantics": {
+          "enum": ["centerline", "edge_gap", "unknown"],
+          "$comment": "Mixing centerline with edge-gap yields INVALID_METRIC."
+        },
+        "geometry_model": {
+          "enum": ["true_arc", "chord_approximation", "segment_only", "unknown"],
+          "$comment": "A chord-measuring tool cannot represent an arc-aware result. Never merge both under one metric_id."
+        },
+        "max_chord_error_mm": {"type": ["number", "null"], "minimum": 0},
+        "approximation": {"type": ["boolean", "null"]},
+        "sampling_step_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "phase_offset": {"type": ["number", "null"]},
+        "min_feature_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "convergence_delta": {
+          "type": ["number", "null"],
+          "$comment": "Run at step and step/2. If the verdict flips, or delta exceeds a quarter of the tolerance, emit INCONCLUSIVE."
+        },
+        "tolerance_mm": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "Mandatory for parallelism_coverage. A percentage without its tolerance is unfalsifiable."
+        },
+        "arc_included": {"type": ["boolean", "null"]},
+        "epsilon_eff": {"type": ["number", "null"]},
+        "velocity_mm_per_ns": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0},
+        "excluded_reasons": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "parallelism_coverage never produces impedance_pass. Without field-solver or lab evidence the best possible verdict is GEOMETRY_PRECHECK_PASS."
+}

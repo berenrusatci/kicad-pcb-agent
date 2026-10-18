@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/shunt-plan/v1",
+  "title": "ProjectE series-shunt current measurement plan",
+  "description": "Output of tools/scripts/shunt_plan.py. Plans series shunts and probe testpoints so a per-rail current can be measured on the bench without cutting a trace or lifting a pin. It is a PLAN, never an edit: schematics here are generated from pin tables, so a modification made behind the generator's back is erased by the next build and leaves no trace of having been erased. 'mutates_schematic' is pinned false to keep that property visible to anything that consumes this artifact.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "mutates_schematic",
+    "meter",
+    "position",
+    "rails",
+    "injections",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "shunt-plan/v1"},
+    "tool": {"const": "shunt_plan"},
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {
+      "const": "early_schematic",
+      "description": "No board exists yet, so no testpoint here carries a pad coordinate or a probe-accessibility claim. The layout constraints attached to each injection are requirements ON a later phase, not results from one."
+    },
+    "mutates_schematic": {"const": false},
+    "meter": {
+      "type": "object",
+      "required": ["resolution_uv", "accuracy_pct"],
+      "properties": {
+        "resolution_uv": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The smallest step the instrument DISPLAYS. This is not its accuracy, and the two are routinely confused: a meter showing 10 uV steps may be specified to 0.5% of reading. The plan uses this for the resolution bound only."
+        },
+        "accuracy_pct": {"type": "number", "minimum": 0}
+      }
+    },
+    "requested_current_resolution_ma": {"type": ["number", "null"]},
+    "max_uncertainty_pct": {
+      "type": ["number", "null"],
+      "description": "The accuracy budget. When null, the achievable uncertainty is still computed and reported, but the 'uncertainty_within_budget' finding is NO_COVERAGE: a figure nobody declared a limit for has not been judged, and reporting PASS because the arithmetic succeeded is the exact failure this tool exists to prevent."
+    },
+    "position": {"enum": ["upstream_of_bypass", "downstream_of_bypass"]},
+    "downstream_override": {
+      "type": "object",
+      "required": ["allowed", "reason"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "reason": {"type": "string"}
+      },
+      "description": "A shunt between the bypass bank and the load carries the load's transient current, degrading the rail under di/dt and making the reading noisy. Overriding requires a stated reason so the decision is legible later."
+    },
+    "rails": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rail", "regulator", "full_scale_current_a", "window",
+                     "shunt_ohm", "reason_codes"],
+        "properties": {
+          "rail": {"type": "string"},
+          "regulator": {
+            "type": "object",
+            "required": ["ref", "pin"],
+            "properties": {
+              "ref": {"type": "string"},
+              "pin": {"type": "string"}
+            }
+          },
+          "full_scale_current_a": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "The regulator's RATED output, from its datasheet - deliberately not the expected draw. Sizing the instrument from the quantity it is meant to measure would be circular, and this tool exists precisely where that quantity is unknown."
+          },
+          "position": {"enum": ["upstream_of_bypass", "downstream_of_bypass"]},
+          "window": {
+            "type": "object",
+            "required": ["r_min_ohm", "r_max_ohm", "empty", "binding"],
+            "properties": {
+              "r_min_ohm": {"type": "number", "description": "From the resolution requirement: meter_resolution / current_resolution."},
+              "r_max_ohm": {"type": "number", "description": "From the droop budget: max_droop / full_scale_current. A fixed-output regulator senses at its own pin, upstream of the shunt, so this drop is not corrected."},
+              "empty": {"type": "boolean"},
+              "binding": {"type": "string"}
+            },
+            "description": "The two bounds pull in opposite directions. When they cross, the window is empty and no value is emitted - 'the measurement cannot be made this way with this meter' is the answer, not the nearest value."
+          },
+          "series": {"enum": ["E24", "E96"]},
+          "shunt_ohm": {"type": ["number", "null"]},
+          "droop_at_full_scale_v": {"type": ["number", "null"]},
+          "power_at_full_scale_w": {"type": ["number", "null"]},
+          "package_power_w": {
+            "type": ["number", "null"],
+            "description": "Never defaulted. Ratings for one nominal package span more than 3x across vendors, so an assumed rating is an invented one."
+          },
+          "achieved_current_resolution_a": {"type": ["number", "null"]},
+          "kelvin": {"type": "boolean"},
+          "parasitic_ohm": {
+            "type": ["number", "null"],
+            "description": "Pad and trace resistance in series with the element. Without Kelvin sensing this term does not cancel, and a few milliohms of copper is a double-digit percentage of a 10 milliohm shunt."
+          },
+          "current_uncertainty_pct": {
+            "type": ["number", "null"],
+            "description": "null when the terms required to compute it were not supplied. An unknown uncertainty is never reported as a small one."
+          },
+          "reason_codes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "injections": {
+      "type": "array",
+      "description": "What a schematic generator has to emit. Consumed by the board's own generator; this tool does not perform it.",
+      "items": {
+        "type": "object",
+        "required": ["rail", "shunt_ref_hint", "shunt_ohm", "series_between",
+                     "testpoints", "layout_constraints"],
+        "properties": {
+          "rail": {"type": "string"},
+          "shunt_ref_hint": {"type": "string"},
+          "shunt_ohm": {"type": ["number", "null"]},
+          "series_between": {"type": "object"},
+          "testpoints": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["name", "net", "side", "phase"],
+              "properties": {
+                "name": {"type": "string"},
+                "net": {"type": "string"},
+                "side": {"enum": ["source", "load"]},
+                "phase": {"const": "early_schematic"}
+              }
+            },
+            "description": "Named by which side of the shunt they touch. A differential reading whose polarity is ambiguous gets logged with the wrong sign."
+          },
+          "net_split": {
+            "type": ["object", "null"],
+            "description": "Inserting a series element splits the rail into two nets. Every node except the regulator pin moves to the load side; anything that named the old net - a netclass rule, an interface contract - has to be told, because two different nets would otherwise answer to one name."
+          },
+          "layout_constraints": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "findings": {"type": "array"},
+    "coverage": {"type": "object"}
+  }
+}

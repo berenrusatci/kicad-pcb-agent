@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/recovery-report/v1",
+  "title": "ProjectE routing recovery ladder report",
+  "description": "Output of scripts/memory/recovery.py. Each rung runs in a short-lived subprocess so a pcbnew/MCP segfault or hang loses one child, not the session.",
+  "type": "object",
+  "required": ["schema_version", "goal", "status", "attempts", "rungs_total",
+               "rungs_attempted", "rungs_unavailable", "needs_human",
+               "started_utc", "finished_utc"],
+  "properties": {
+    "schema_version": {"const": "recovery-report/v1"},
+    "goal": {"type": "string"},
+    "status": {"enum": ["RECOVERED", "EXHAUSTED", "NO_LADDER"]},
+    "succeeded_rung": {"type": ["string", "null"]},
+    "result": {},
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rung", "function", "ok", "failure"],
+        "properties": {
+          "rung": {"type": "string", "minLength": 1},
+          "function": {"type": "string", "pattern": "^[^:]+:[^:]+$"},
+          "ok": {"type": "boolean"},
+          "failure": {"enum": ["", "timeout", "crashed", "bad_output",
+                               "unavailable"]},
+          "detail": {"type": "string"},
+          "exit_code": {"type": ["integer", "null"]},
+          "stderr": {"type": "string"}
+        }
+      }
+    },
+    "rungs_total": {"type": "integer", "minimum": 1},
+    "rungs_attempted": {"type": "integer", "minimum": 0},
+    "rungs_unavailable": {"type": "integer", "minimum": 0},
+    "needs_human": {"type": "boolean"},
+    "note": {"type": "string"},
+    "plan": {"type": "string"},
+    "archived": {"type": "string"},
+    "started_utc": {"type": "string", "format": "date-time"},
+    "finished_utc": {"type": "string", "format": "date-time"}
+  },
+  "$comment": "needs_human is true ONLY for status EXHAUSTED: every rung ran and failed. NO_LADDER means no rung could be imported, which is a configuration fault and must not be escalated as an engineering decision. 'bad_output' (exit 0, non-JSON stdout) is a FAILURE, never a success."
+}

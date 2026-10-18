@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/fanout-plan/v1",
+  "title": "ProjectE fanout_plan — one record per candidate work unit",
+  "type": "object",
+  "required": ["schema_version", "metric_name", "signoff", "run_id", "units", "disjointness_proof", "coverage", "domain_state", "gate"],
+  "properties": {
+    "schema_version": {"const": "fanout-plan/v1"},
+    "metric_name": {
+      "const": "fanout_coverage",
+      "$comment": "Pinned against the C2-class name collision: parallelism_coverage is a trace-geometry metric owned by highspeed-routing. See _shared/glossary.md section 8."
+    },
+    "signoff": {
+      "const": false,
+      "$comment": "An execution gate never produces a design PASS. It only decides whether work may be split."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "Names runs/<run_id>/ - the publish pattern is owned by gptpro section 6, not redefined here."
+    },
+    "decided_at": {"type": ["string", "null"]},
+    "units": {"type": "array", "items": {"$ref": "#/$defs/unit"}},
+    "disjointness_proof": {"$ref": "#/$defs/disjointness_proof"},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "domain_state": {
+      "enum": ["FANOUT_APPROVED", "INLINE_CHEAPER", "FANOUT_UNSAFE"],
+      "$comment": "Aggregate over units. Subject to its own dictionary, NOT the closed verdict dictionary; it opens no gate on its own."
+    },
+    "gate": {"$ref": "#/$defs/gate"},
+    "speedup_measured_s": {
+      "type": ["number", "null"],
+      "$comment": "null is the honest default. An unmeasured wall-clock claim is not evidence; leave it null rather than estimating."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "unit": {
+      "type": "object",
+      "required": ["id", "decision", "reason", "writes", "reads"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "decision": {"enum": ["FANOUT_APPROVED", "INLINE_CHEAPER", "FANOUT_UNSAFE", "EXCLUDED"]},
+        "reason": {"type": "string", "minLength": 1},
+        "writes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "$comment": "Repo-relative paths this unit will write. An absent or empty list makes the unit EXCLUDED - it cannot be proven disjoint."
+        },
+        "reads": {"type": "array", "items": {"type": "string"}},
+        "failed_test": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 4,
+          "$comment": "1 independence, 2 writer-disjointness, 3 profitability, 4 execution envelope. null when every test passed."
+        },
+        "touches_board": {
+          "type": "boolean",
+          "$comment": "true when writes[] contains .kicad_pcb or .kicad_sch. Forces FANOUT_UNSAFE and defers to board-write-lock."
+        },
+        "profitability": {"$ref": "#/$defs/profitability"},
+        "envelope": {"$ref": "#/$defs/envelope"}
+      },
+      "additionalProperties": false
+    },
+    "profitability": {
+      "type": "object",
+      "required": ["bulky_output", "context_not_loaded", "summarisable", "own_deliverable"],
+      "properties": {
+        "bulky_output": {"type": "boolean"},
+        "context_not_loaded": {"type": "boolean"},
+        "summarisable": {"type": "boolean"},
+        "own_deliverable": {"type": "boolean"}
+      },
+      "additionalProperties": false,
+      "$comment": "The four questions of SKILL section 2c. Rule: (bulky_output OR context_not_loaded) AND (summarisable AND own_deliverable). Anything else is INLINE_CHEAPER. There is no numeric threshold because no measured one exists - see references/execution-envelope.md section 3."
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["background", "own_report_path"],
+      "properties": {
+        "expected_runtime_class": {"enum": ["under_2min", "2min_to_10min", "over_10min", "unknown"]},
+        "background": {"type": "boolean"},
+        "own_report_path": {
+          "type": ["string", "null"],
+          "$comment": "The --json report this branch writes. Required in practice: a failing run's stdout arrives truncated with no file path."
+        },
+        "isolated_subprocess": {"type": "boolean"},
+        "timeout_s": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "disjointness_proof": {
+      "type": "object",
+      "required": ["method", "checked_paths", "pairs_compared", "intersections"],
+      "properties": {
+        "method": {
+          "enum": ["path_set_intersection", "not_run"],
+          "$comment": "not_run is only legal when every unit is EXCLUDED, and then coverage.scanned is 0 -> NO_COVERAGE."
+        },
+        "checked_paths": {"type": "integer", "minimum": 0},
+        "pairs_compared": {"type": "integer", "minimum": 0},
+        "intersections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/intersection"},
+          "$comment": "Every non-empty intersection is one coverage violation."
+        }
+      },
+      "additionalProperties": false
+    },
+    "intersection": {
+      "type": "object",
+      "required": ["left", "right", "paths"],
+      "properties": {
+        "left": {"type": "string"},
+        "right": {"type": "string"},
+        "paths": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false,
+      "$comment": "scanned + excluded == eligible; violations <= scanned; scanned == 0 -> NO_COVERAGE. Owner: _shared/coverage-gate.md."
+    },
+    "gate": {
+      "type": "object",
+      "required": ["verdict"],
+      "properties": {
+        "verdict": {"enum": ["NO_COVERAGE", "INVALID_COVERAGE", "CONFIRM", "STALE", "RED", "GREEN"]},
+        "reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  }
+}

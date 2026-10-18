@@ -1,0 +1,64 @@
+{
+  "_README": [
+    "TEMPLATE. The live policy for this repo is <PROJECT_ROOT>/.gptpro/",
+    "disclosure-policy.json — read that one for a worked example. This file",
+    "documents the format for another repo, or for a fresh start here.",
+    "",
+    "This file is the ONLY thing that can move the disclosure gate off CONFIRM.",
+    "There is no environment variable and no flag that does it, on purpose: a",
+    "bypass switch here would rebuild the exact laundering path the gate exists",
+    "to close. Someone has to write down who decided, and on what basis.",
+    "",
+    "What a regex CAN measure: that a path matches a rule someone wrote.",
+    "What it CANNOT measure: that the file is legally shareable. This file",
+    "records a human decision so the export can check coverage of it. It does",
+    "not manufacture the decision.",
+    "",
+    "MATCHING: first rule whose `pattern` matches the file's repo-relative path",
+    "wins, so order the restrictive rules ABOVE the broad ones. Patterns use the",
+    "same subset the excludes use — a pattern with no slash matches any single",
+    "path component, `a/b` matches a contiguous run, a leading `/` anchors at",
+    "the repo root, and `*`/`?` are globs.",
+    "",
+    "SHARE has three values, not two:",
+    "  allow    cleared to leave the repo",
+    "  deny     must not leave -> RED, the export aborts and publishes nothing",
+    "  confirm  classified, and the answer is 'no authority has cleared this",
+    "           class' -> CONFIRM, upload unauthorized",
+    "",
+    "`confirm` is the one that earns its keep. Without it a class nobody has the",
+    "standing to clear has only two homes: `deny`, which halts the export over a",
+    "question no one asked, or silence, which is indistinguishable from never",
+    "having looked. Anything matching NO rule is UNKNOWN and also lands on",
+    "CONFIRM — but it is counted separately, because 'we know we don't know' and",
+    "'we didn't look' should never be the same number.",
+    "",
+    "DO NOT write a catch-all `*` allow rule. It classifies the unknown: every",
+    "file added to the repo afterwards becomes silently shareable. Enumerate what",
+    "you have decided and let the rest stay UNKNOWN."
+  ],
+
+  "authority": "REPLACE ME — name the human or document that granted this, e.g. 'operator J. Doe, 2026-08-10, on the basis of <contract clause / licence / allowlist>'. An unattributed policy is not an authority and the export rejects it.",
+  "decided_utc": "2026-08-10T00:00:00Z",
+
+  "rules": [
+    {
+      "pattern": "*.pdf",
+      "share": "deny",
+      "class": "VENDOR_BINARY",
+      "basis": "Raw vendor document. Usually dropped by EXCLUDES already; a deny rule is the backstop that turns a future config mistake into RED instead of a silent leak."
+    },
+    {
+      "pattern": "ground-truth",
+      "share": "confirm",
+      "class": "VENDOR_DERIVED",
+      "basis": "The hard case, and the reason `confirm` exists. Data extracted from vendor documents — whether a derived JSON inherits the source document's restriction is a legal question, not a filesystem one. Recording it as `confirm` says the class was examined and the authority is missing."
+    },
+    {
+      "pattern": "src",
+      "share": "allow",
+      "class": "PROJECT_OWNED",
+      "basis": "Written in this project. No third-party material."
+    }
+  ]
+}

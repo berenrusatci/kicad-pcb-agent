@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/stackup/v1",
+  "title": "ProjectE stackup + impedance_rules contract",
+  "type": "object",
+  "required": ["schema_version", "layers", "impedance_targets", "status"],
+  "properties": {
+    "schema_version": {"const": "stackup/v1"},
+    "board_thickness_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+    "balanced_symmetric": {
+      "type": ["boolean", "null"],
+      "$comment": "Unbalanced copper distribution across layer pairs warps the board in reflow."
+    },
+    "pressed_stackup_received": {
+      "type": ["boolean", "null"],
+      "$comment": "Nominal prepreg thickness is not pressed thickness. Z must be recomputed once the fab returns the pressed stackup."
+    },
+    "glass_style": {"type": ["string", "null"]},
+    "panel_orientation": {"type": ["string", "null"]},
+    "fiber_weave_risk": {
+      "type": ["object", "null"],
+      "properties": {
+        "lane_ui_ps": {"type": ["number", "null"]},
+        "total_parallel_length_mm": {"type": ["number", "null"]},
+        "pair_pitch_mm": {"type": ["number", "null"]},
+        "mitigation": {"enum": ["glass_style", "multi_ply", "panel_orientation", "angled_routing", "none", null]},
+        "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", null]}
+      },
+      "additionalProperties": false,
+      "$comment": "Never fabricate a fixed angle or ps-per-length number. This gate is qualitative."
+    },
+    "layers": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/layer"}},
+    "impedance_targets": {"type": "array", "items": {"$ref": "#/$defs/target"}},
+    "coupon": {"$ref": "#/$defs/coupon"},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "layer": {
+      "type": "object",
+      "required": ["index", "name", "type"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0},
+        "name": {"type": "string", "minLength": 1},
+        "type": {"enum": ["signal", "plane", "mixed", "prepreg", "core", "soldermask"]},
+        "copper_weight_oz": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "finished_copper_um": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "thickness_mm_nominal": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "thickness_mm_pressed": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "er": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "er_frequency_ghz": {
+          "type": ["number", "null"],
+          "$comment": "er falls with frequency. An er quoted without its frequency is not usable at GHz."
+        },
+        "loss_tangent": {"type": ["number", "null"]},
+        "reference_net": {
+          "type": ["string", "null"],
+          "$comment": "Mandatory for every signal layer carrying a high-speed net. Null => NO_COVERAGE for that layer."
+        },
+        "reference_continuous": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["net_class", "layer", "zdiff_target_ohm", "zse_target_ohm", "mode_conversion_limit", "sources", "solved", "status"],
+      "properties": {
+        "net_class": {"type": "string", "minLength": 1},
+        "layer": {"type": "string", "minLength": 1},
+        "layer_type": {"enum": ["microstrip", "stripline", "coated_microstrip", null]},
+        "zdiff_target_ohm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "zdiff_tolerance_percent": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "zse_target_ohm": {
+          "type": ["number", "null"],
+          "$comment": "MIPI LP mode is single-ended. Solving only Zdiff is incomplete."
+        },
+        "mode_conversion_limit": {"type": ["string", "null"]},
+        "sources": {
+          "type": "object",
+          "required": ["zdiff", "zse", "mode_conversion"],
+          "properties": {
+            "zdiff": {"type": ["string", "null"]},
+            "zse": {"type": ["string", "null"]},
+            "mode_conversion": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false,
+          "$comment": "A target without a source stays CONFIRM. Never carry another family's numbers across automatically."
+        },
+        "solved": {
+          "type": "object",
+          "required": ["w_mm", "s_mm", "model_class", "signoff"],
+          "properties": {
+            "w_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+            "s_mm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+            "w_below_fab_min": {
+              "type": ["boolean", "null"],
+              "$comment": "True forces a stackup revision, never a routing compromise."
+            },
+            "zdiff_bare_ohm": {"type": ["number", "null"]},
+            "zdiff_masked_ohm": {
+              "type": ["number", "null"],
+              "$comment": "Report masked and unmasked together. Solder mask lowers microstrip Z; stripline is unaffected."
+            },
+            "model_class": {"const": "exploratory_closed_form"},
+            "signoff": {"const": false},
+            "field_solver_evidence_id": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "status": {"enum": ["TBD", "CONFIRM", "SCREEN_ONLY", "NO_COVERAGE", "RED", "GREEN"]}
+      },
+      "additionalProperties": false
+    },
+    "coupon": {
+      "type": ["object", "null"],
+      "required": ["requested", "method", "structures_represented"],
+      "properties": {
+        "requested": {"type": ["boolean", "null"]},
+        "method": {"enum": ["IPC-TM-650 2.5.5.7A", "other", "unknown", null]},
+        "coupon_standard": {"type": ["string", "null"]},
+        "min_test_conductor_mm": {"type": ["number", "null"], "minimum": 114.3},
+        "structures_represented": {
+          "type": ["object", "null"],
+          "required": ["same_layer", "same_copper_weight", "same_w_s", "same_reference_planes", "same_soldermask_condition"],
+          "properties": {
+            "same_layer": {"type": ["boolean", "null"]},
+            "same_copper_weight": {"type": ["boolean", "null"]},
+            "same_w_s": {"type": ["boolean", "null"]},
+            "same_reference_planes": {"type": ["boolean", "null"]},
+            "same_soldermask_condition": {"type": ["boolean", "null"]}
+          },
+          "additionalProperties": false,
+          "$comment": "If any is false the coupon does not represent your trace."
+        },
+        "report_received": {"type": ["boolean", "null"]},
+        "measured_mean_ohm": {"type": ["number", "null"]},
+        "measured_min_ohm": {"type": ["number", "null"]},
+        "measured_max_ohm": {"type": ["number", "null"]},
+        "panel_and_coupon_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false,
+      "$comment": "Coupon TDR validates the manufactured structure, not the routed channel. Vias, launches and bends are absent from the coupon."
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "schema_version": "connector-spec/v1",
+  "connectors": [
+    {
+      "refdes": "J1",
+      "mpn": "FIXTURE-PWR-2P (not a real part)",
+      "role": "power_in",
+      "datasheet_locator": "FIXTURE datasheet, fig. 7 derating curve, 2 adjacent carriers",
+      "mating": {
+        "cycles_required": 60,
+        "datasheet_cycles": 500,
+        "finish": "hard_gold",
+        "fab_note": "FIXTURE: selective hard gold on the mating contacts"
+      },
+      "current": {
+        "rated_a_per_contact": 3.0,
+        "derated_a_per_contact": 2.1,
+        "derating_basis": "datasheet_curve",
+        "adjacent_carrying_contacts": 1,
+        "ambient_c": 85.0,
+        "parallel_pins": 2,
+        "parallel_pin_assumption": "margin_applied",
+        "ground_return_pin_count": 2,
+        "rail_cross_check": {
+          "rail": "FIXTURE_5V_IN",
+          "rail_worst_case_a": 2.4,
+          "connector_is_binding_constraint": false
+        }
+      },
+      "mechanical": {
+        "anchor_type": "through_hole_leg",
+        "anchor_count": 2,
+        "strain_relief_owner": "enclosure"
+      },
+      "status": "CONFIRM",
+      "status_reason": "FIXTURE record. Every number here is invented to exercise the cross-checker and must never be copied into a design."
+    },
+    {
+      "refdes": "J2",
+      "mpn": "FIXTURE-FPC-30P (not a real part)",
+      "role": "bidirectional",
+      "datasheet_locator": "FIXTURE datasheet, table 4 derating vs ambient",
+      "mating": {
+        "cycles_required": 20,
+        "datasheet_cycles": 30,
+        "finish": "other",
+        "fab_note": null
+      },
+      "current": {
+        "rated_a_per_contact": 0.5,
+        "derated_a_per_contact": 0.3,
+        "derating_basis": "datasheet_curve",
+        "adjacent_carrying_contacts": 2,
+        "ambient_c": 85.0,
+        "parallel_pins": 1,
+        "parallel_pin_assumption": "single_pin",
+        "ground_return_pin_count": 1,
+        "rail_cross_check": {
+          "rail": "FIXTURE_3V3",
+          "rail_worst_case_a": 0.22,
+          "connector_is_binding_constraint": false
+        }
+      },
+      "mechanical": {
+        "anchor_type": "solder_tab",
+        "anchor_count": 2,
+        "strain_relief_owner": "board"
+      },
+      "status": "CONFIRM",
+      "status_reason": "FIXTURE record. Invented values; not a datasheet reading."
+    }
+  ],
+  "coverage": {
+    "eligible": 2,
+    "scanned": 2,
+    "excluded": 0,
+    "violations": 0
+  },
+  "status": "CONFIRM"
+}

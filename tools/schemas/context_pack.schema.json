@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/pcb-context-pack/v1",
+  "title": "ProjectE context pack manifest",
+  "description": "Input contract for context_pack.py. Written from the validator's Python implementation; the validator remains authoritative, this file documents the shape for producers and for review.",
+  "type": "object",
+  "required": ["schema_version", "task", "budget", "artifacts", "output_contract"],
+  "properties": {
+    "schema_version": {"const": "pcb-context-pack/v1"},
+    "task": {
+      "type": "object",
+      "required": [
+        "id", "objective", "scope", "non_goals", "decision_ids",
+        "owner_skill", "mutation_policy", "allowed_actions", "forbidden_actions"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "objective": {"type": "string", "minLength": 1},
+        "scope": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "non_goals": {"type": "array", "items": {"type": "string"}},
+        "decision_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "owner_skill": {"type": "string", "minLength": 1},
+        "mutation_policy": {"enum": ["read_only", "write_scratch", "write_canonical"]},
+        "allowed_actions": {"type": "array", "items": {"type": "string"}},
+        "forbidden_actions": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["max_files", "max_bytes"],
+      "properties": {
+        "max_files": {"type": "integer", "minimum": 1},
+        "max_bytes": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["role", "path", "sha256", "required", "purpose", "decision_ids"],
+        "properties": {
+          "role": {"type": "string", "minLength": 1},
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Relative to --root. Absolute paths and '..' are rejected."
+          },
+          "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "required": {"type": "boolean"},
+          "purpose": {"type": "string", "minLength": 1},
+          "decision_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "constraints": {"type": "array"},
+    "open_questions": {"type": "array"},
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "purpose", "mode"],
+        "properties": {
+          "name": {"type": "string"},
+          "purpose": {"type": "string"},
+          "mode": {"enum": ["read", "write"]},
+          "preconditions": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "output_contract": {
+      "type": "object",
+      "required": ["artifact_path", "schema_version", "required_claim_fields"],
+      "properties": {
+        "artifact_path": {"type": "string", "minLength": 1},
+        "schema_version": {"type": "string"},
+        "required_claim_fields": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "validator", "argv", "expected_exit"],
+        "properties": {
+          "id": {"type": "string"},
+          "validator": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+            },
+            "additionalProperties": false
+          },
+          "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "expected_exit": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "SECURITY: gates[].argv is executed via subprocess by --postflight. That is why --postflight is never exposed over MCP. The gate validator must be the real argv entrypoint; context_pack blocks a manifest whose declared validator is not what argv actually runs."
+}

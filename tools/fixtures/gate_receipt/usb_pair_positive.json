@@ -1,0 +1,139 @@
+{
+  "argv": [
+    "python3",
+    "usb_pair_verifier_fixture.py",
+    "usb_pair_metrics_minimal.json",
+    "--profile",
+    "review-2l",
+    "--prove-gap-fault"
+  ],
+  "assurance_level": "A",
+  "blockers": [],
+  "child_receipts": [],
+  "config": {
+    "path": "review_2l_rules.json",
+    "sha256": "af3c0091bbe1d3ed9b5728b7dff7abe79268e81e09752421170916a9cec964b3"
+  },
+  "coverage": {
+    "eligible": 629,
+    "excluded": 0,
+    "reason": "J1_U1 and U1_J2 full-path sample populations",
+    "scanned": 629
+  },
+  "end_utc": "2026-07-29T11:20:28.545183+00:00",
+  "exit_code": 0,
+  "fault_injection": {
+    "baseline_artifact": {
+      "path": "usb_pair_metrics_minimal.json",
+      "sha256": "84f8a452f1f5cb991889e969f7e125943ac1066e57a469adcbe47767842dce31"
+    },
+    "command": {
+      "argv": [
+        "python3",
+        "usb_pair_verifier_fixture.py",
+        "usb_pair_metrics_minimal.json",
+        "--profile",
+        "review-2l",
+        "--prove-gap-fault"
+      ],
+      "exit_code": 0
+    },
+    "expected_failed_metrics": [
+      "U1_J2.review_compatibility_chord_edge_gap_mm.p50",
+      "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction"
+    ],
+    "fixture": {
+      "path": "usb_pair_gap_fault_definition.json",
+      "sha256": "bced92e6c2c15238c40485cad90c22b56511163816cc34ac3b9c853403066bfe"
+    },
+    "injected_artifact": {
+      "path": "usb_pair_gap_fault_observation.json",
+      "sha256": "8e2f5a2049f3aef474f09215c7aa9d064bb7603b780cc306dfa6345219f5de0a"
+    },
+    "observed_failures": [
+      "U1_J2.review_compatibility_chord_edge_gap_mm.p50",
+      "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction"
+    ],
+    "status": "PASS"
+  },
+  "gate_id": "usb-hs-pair-review-2l",
+  "gate_kind": "geometry",
+  "inputs": [
+    {
+      "path": "usb_pair_metrics_minimal.json",
+      "role": "metrics_json",
+      "sha256": "84f8a452f1f5cb991889e969f7e125943ac1066e57a469adcbe47767842dce31"
+    },
+    {
+      "path": "provenance.json",
+      "role": "source_provenance",
+      "sha256": "768aac68ad08d8952a020b84d0e5a05fb2c9dd20666ed445d3de3433f09fe8d7"
+    }
+  ],
+  "metric_semantics": {
+    "J1_U1.review_compatibility_chord_edge_gap_mm.p50": {
+      "definition": "Median sampled copper-edge gap on the retained review compatibility path",
+      "distance_semantics": "copper_edge_to_edge",
+      "geometry_model": "review_compatibility_chord_only; not arc-aware",
+      "region": "J1_U1/full_path",
+      "sampling_step": {
+        "units": "mm",
+        "value": 0.05
+      },
+      "units": "mm"
+    },
+    "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction": {
+      "definition": "Fraction of sampled edge gaps within 0.176..0.264 mm",
+      "distance_semantics": "copper_edge_to_edge",
+      "geometry_model": "review_compatibility_chord_only; not arc-aware",
+      "region": "U1_J2/full_path",
+      "sampling_step": {
+        "units": "mm",
+        "value": 0.05
+      },
+      "units": "fraction"
+    },
+    "U1_J2.review_compatibility_chord_edge_gap_mm.p50": {
+      "definition": "Median sampled copper-edge gap on the retained review compatibility path",
+      "distance_semantics": "copper_edge_to_edge",
+      "geometry_model": "review_compatibility_chord_only; not arc-aware",
+      "region": "U1_J2/full_path",
+      "sampling_step": {
+        "units": "mm",
+        "value": 0.05
+      },
+      "units": "mm"
+    }
+  },
+  "parsed_metrics": {
+    "J1_U1.review_compatibility_chord_edge_gap_mm.p50": 0.22,
+    "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction": 0.737705,
+    "U1_J2.review_compatibility_chord_edge_gap_mm.p50": 0.22
+  },
+  "profile": "review-2l",
+  "provenance": {
+    "fixture_manifest": "provenance.json",
+    "source_receipt_schema": "usb-hs-pair-verifier-receipt/v1",
+    "source_receipt_sha256": "9560a68bdbb4724c7c96bbbf1c3c37cd4498a3daf60ba7eb3bd8594a8619a10c",
+    "synthetic": false
+  },
+  "retention": {
+    "expires_utc": "2027-07-29T00:00:00Z",
+    "policy": "audit-window-365d",
+    "retain": [
+      "receipt",
+      "hashes",
+      "metrics",
+      "reproducibility_command"
+    ]
+  },
+  "schema": "usb-hs-pair-verifier-receipt/v1",
+  "start_utc": "2026-07-29T11:20:26.392087+00:00",
+  "tool": {
+    "name": "23_verify_usb_pair_metrics.py (minimal fixture)",
+    "path": "usb_pair_verifier_fixture.py",
+    "sha256": "bf9615762da713be911e06861718161818e08b08bef1b035d77cda52dab064dd",
+    "version": "1.0"
+  },
+  "verdict": "GREEN"
+}

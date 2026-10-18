@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/rail-tree/v1",
+  "title": "ProjectE rail_tree pinned contract",
+  "type": "object",
+  "required": ["schema_version", "rails"],
+  "properties": {
+    "schema_version": {"const": "rail-tree/v1"},
+    "rails": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/rail"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "rail": {
+      "type": "object",
+      "required": [
+        "i_max_a",
+        "ipc2221_screen_width_mm",
+        "final_width_mm",
+        "standard",
+        "min_via_count",
+        "max_ir_drop_mv",
+        "c_eff_uf"
+      ],
+      "properties": {
+        "i_max_a": {"type": ["number", "null"]},
+        "ipc2221_screen_width_mm": {"type": ["number", "null"]},
+        "final_width_mm": {"type": ["number", "null"]},
+        "standard": {"type": "string", "minLength": 1},
+        "min_via_count": {"type": ["integer", "null"], "minimum": 0},
+        "max_ir_drop_mv": {"type": ["number", "null"]},
+        "c_eff_uf": {"type": ["number", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "Null/TBD fields preserve workflow usability but cannot yield PASS; producer and consumer must use exactly the seven pinned rail fields."
+}

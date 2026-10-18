@@ -1,0 +1,64 @@
+{
+  "schema_version": "i2c-segment-input/v1",
+  "_fixture": "SYNTHETIC. Every source below names a document that does not exist. These numbers are here so the arithmetic and the refusals can be tested; they are NOT this project's values and must never be copied into a real run. Window they produce: Rmin = (3.3-0.4)/0.003 = 966.67 ohm, Rmax = 300e-9/(ln(0.7/0.3)*100e-12) = 3540.6 ohm.",
+  "segments": [
+    {
+      "bus": "SENSOR_I2C",
+      "mode": "Fast-mode",
+      "rail_net": "+3V3",
+      "lines": {"SDA": "SENSOR_SDA", "SCL": "SENSOR_SCL"},
+      "inputs": {
+        "vdd_v": {
+          "value": 3.3,
+          "source": {
+            "document": "FIXTURE - synthetic rail table; not a real project document",
+            "revision": "fixture-1",
+            "clause": "+3V3 nominal"
+          }
+        },
+        "vol_v": {
+          "value": 0.4,
+          "source": {
+            "document": "FIXTURE - synthetic device datasheet; not a real part",
+            "revision": "fixture-1",
+            "clause": "Table 2 DC characteristics, weakest driver on the segment"
+          }
+        },
+        "iol_a": {
+          "value": 0.003,
+          "source": {
+            "document": "FIXTURE - synthetic device datasheet; not a real part",
+            "revision": "fixture-1",
+            "clause": "Table 2 DC characteristics, IOL at which VOL is specified"
+          }
+        },
+        "c_bus_f": {
+          "value": 1e-10,
+          "method": "measured",
+          "source": {
+            "document": "FIXTURE - synthetic bench measurement log",
+            "revision": "fixture-run-3",
+            "clause": "LCR meter at 1 kHz, connector and cable attached"
+          }
+        },
+        "t_rise_s": {
+          "value": 3e-07,
+          "source": {
+            "document": "FIXTURE - synthetic bus specification; NOT a real I2C standard",
+            "revision": "fixture-1",
+            "clause": "Table F, maximum rise time for the selected mode"
+          }
+        },
+        "rise_time_band": {
+          "low_fraction": 0.3,
+          "high_fraction": 0.7,
+          "source": {
+            "document": "FIXTURE - synthetic bus specification; NOT a real I2C standard",
+            "revision": "fixture-1",
+            "clause": "Table F note 2, tr measured between 0.3 and 0.7 VDD"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/metric-coverage/v1",
+  "title": "ProjectE per-metric coverage",
+  "type": "object",
+  "required": ["eligible", "scanned", "excluded", "violations"],
+  "properties": {
+    "eligible": {"type": "integer", "minimum": 0},
+    "scanned": {"type": "integer", "minimum": 0},
+    "excluded": {"type": "integer", "minimum": 0},
+    "violations": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false,
+  "$comment": "Require scanned + excluded == eligible and violations <= scanned. scanned=0 means NO_COVERAGE, never GREEN."
+}

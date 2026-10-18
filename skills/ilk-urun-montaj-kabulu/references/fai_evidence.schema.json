@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/fai-evidence/v1",
+  "title": "ProjectE first-article (FAI) evidence contract",
+  "description": "The STRUCTURED record an assembler/fab returns with the first article, plus the identity of the released package it was built from. This is the INPUT to tools/scripts/production/first_article.py. It is deliberately a record of results, not of raw media: every acceptance decision here was made by a machine (AOI/X-ray) or a named human, and this document carries the decision plus a hash-bound locator for the artefact that backs it. Nothing in the pipeline reads pixels; an image with no decision attached to it is not evidence, it is an attachment.",
+  "type": "object",
+  "required": ["schema_version", "identity", "released_package", "refdes_universe"],
+  "properties": {
+    "schema_version": {"const": "fai-evidence/v1"},
+    "identity": {
+      "type": "object",
+      "required": ["board_revision", "lot", "work_order", "unit_serial"],
+      "$comment": "WHO was built, from WHAT, and WHEN. released_package_sha256 is the digest the ASSEMBLER says it built from; released_package.sha256 is the digest that was actually released. The whole gate turns on those two being the same number - see first_article.check_released_package.",
+      "properties": {
+        "board_revision": {"type": "string", "minLength": 1},
+        "board_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "lot": {"type": "string", "minLength": 1},
+        "work_order": {"type": "string", "minLength": 1},
+        "unit_serial": {"type": "string", "minLength": 1},
+        "released_package_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "assembler": {"type": ["string", "null"]},
+        "built_utc": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "released_package": {
+      "type": "object",
+      "required": ["board_revision", "sha256"],
+      "$comment": "The DESIGN_ARTIFACT side: the gerbers/CPL/BOM bundle cpl-assembly released. Owned by cpl-assembly; this document only quotes its identity and never rewrites it.",
+      "properties": {
+        "board_revision": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "path": {"type": ["string", "null"]},
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "path", "sha256"],
+            "properties": {
+              "role": {"enum": ["gerbers", "cpl", "bom", "fab_receipt", "rotation_map", "lifecycle_report", "panel_drawing"]},
+              "path": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "panelised": {
+      "type": ["boolean", "null"],
+      "$comment": "null means nobody said. A null is NOT 'no panel': it leaves the depanel-trial class unanswered and caps the gate at CONFIRM."
+    },
+    "refdes_universe": {
+      "type": "array",
+      "description": "The ELIGIBLE population, taken from the released CPL/BOM. This is the denominator of every coverage triple the gate publishes. It is an input, not something the tool derives, because deriving it from the evidence would make the evidence its own denominator - a set that always covers itself.",
+      "items": {"$ref": "#/$defs/universe_row"}
+    },
+    "as_built": {
+      "type": "array",
+      "description": "One row per inspected refdes, from AOI / assembler record / named manual inspection.",
+      "items": {"$ref": "#/$defs/as_built_row"}
+    },
+    "excluded": {
+      "type": "array",
+      "description": "Refdes deliberately taken out of the first-article scope, each with a stated reason. An exclusion is a recorded decision; a missing row is not.",
+      "items": {
+        "type": "object",
+        "required": ["refdes", "reason"],
+        "properties": {
+          "refdes": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1},
+          "approver": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "xray_records": {
+      "type": "array",
+      "description": "Hidden-joint (BGA/QFN/LGA/bottom-terminated) inspection. Without these the hidden-joint defect universe does not close and the gate cannot be GREEN on those refdes.",
+      "items": {
+        "type": "object",
+        "required": ["refdes", "result", "evidence"],
+        "properties": {
+          "refdes": {"type": "string", "minLength": 1},
+          "result": {"enum": ["PASS", "FAIL", "REQUIRES_INTERPRETATION"]},
+          "void_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+          "acceptance_standard": {
+            "type": ["string", "null"],
+            "$comment": "e.g. IPC-7095 class. The THRESHOLD is not owned here - this field names the standard the vendor judged against, it does not let this gate invent a void limit."
+          },
+          "evidence": {"$ref": "#/$defs/evidence_ref"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "msl_records": {
+      "type": "array",
+      "description": "The assembler's ACTUAL moisture-sensitivity handling, checked against the msl_level bom-lifecycle owns. This gate verifies the handling record; it does not define MSL levels or floor lives.",
+      "items": {
+        "type": "object",
+        "required": ["refdes", "msl_level", "evidence"],
+        "properties": {
+          "refdes": {"type": "string", "minLength": 1},
+          "msl_level": {"enum": ["1", "2", "2a", "3", "4", "5", "5a", "6", "unknown"]},
+          "floor_life_hours_declared": {"type": ["number", "null"], "minimum": 0},
+          "floor_life_hours_used": {"type": ["number", "null"], "minimum": 0},
+          "bake_performed": {"type": ["boolean", "null"]},
+          "dry_pack_intact_on_arrival": {"type": ["boolean", "null"]},
+          "evidence": {"$ref": "#/$defs/evidence_ref"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "depanel_record": {
+      "type": ["object", "null"],
+      "required": ["performed", "result", "evidence"],
+      "properties": {
+        "performed": {"type": "boolean"},
+        "result": {"enum": ["PASS", "FAIL", "REQUIRES_INTERPRETATION"]},
+        "damaged_refdes": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"$ref": "#/$defs/evidence_ref"}
+      },
+      "additionalProperties": false
+    },
+    "fab_dfm_acceptance": {
+      "type": ["object", "null"],
+      "required": ["accepted", "evidence"],
+      "$comment": "The fab's own formal acceptance of the released package. Parsed as a TOOL_REPORT/vendor record; never inferred from 'they took the order'.",
+      "properties": {
+        "accepted": {"type": "boolean"},
+        "notes": {"type": ["string", "null"]},
+        "evidence": {"$ref": "#/$defs/evidence_ref"}
+      },
+      "additionalProperties": false
+    },
+    "deviations": {
+      "type": "array",
+      "description": "Every manufacturing deviation raised on this first article, with its disposition and approver. An unresolved deviation - or one with no named approver - blocks serial release.",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "disposition", "approver", "resolved"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "refdes": {"type": ["string", "null"]},
+          "description": {"type": "string", "minLength": 1},
+          "disposition": {
+            "enum": ["use_as_is", "rework", "scrap", "design_change", "open"],
+            "$comment": "'open' is not a disposition, it is the absence of one, and it is spelled out so that an unresolved deviation cannot hide as a missing field."
+          },
+          "approver": {"type": ["string", "null"]},
+          "resolved": {"type": "boolean"},
+          "feedback_target": {
+            "type": ["string", "null"],
+            "enum": ["cpl-assembly", "dfm", "bom-lifecycle", "cad-assets", "design-checker", null],
+            "$comment": "Which upstream owner the L2 feedback edge goes to. This gate classifies the issue; it does not fix it in the upstream artefact."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "parent_receipts": {
+      "type": "array",
+      "description": "Hash-bound receipts this acceptance rests on (the cpl-assembly / combined-gate receipts).",
+      "items": {
+        "type": "object",
+        "required": ["role", "path", "sha256"],
+        "properties": {
+          "role": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "verdict": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "universe_row": {
+      "type": "object",
+      "required": ["refdes"],
+      "properties": {
+        "refdes": {"type": "string", "minLength": 1},
+        "value": {"type": ["string", "null"]},
+        "package": {"type": ["string", "null"]},
+        "expected_rotation_deg": {
+          "type": ["number", "null"],
+          "$comment": "From the released CPL, already carrying the fab rotation offset cpl-assembly applied. null means this refdes has no orientation expectation to check (a symmetric passive), NOT that any angle is acceptable."
+        },
+        "side": {"enum": ["top", "bottom", null]},
+        "dnp": {"type": ["boolean", "null"]},
+        "polar": {"type": ["boolean", "null"]},
+        "hidden_joint": {
+          "type": ["boolean", "null"],
+          "$comment": "BGA/LGA/QFN/bottom-terminated: the joint cannot be seen optically, so AOI/photo evidence does not close it. true puts this refdes into the X-ray eligible population."
+        },
+        "msl_level": {"enum": ["1", "2", "2a", "3", "4", "5", "5a", "6", "unknown", null]}
+      },
+      "additionalProperties": false
+    },
+    "as_built_row": {
+      "type": "object",
+      "required": ["refdes", "evidence"],
+      "$comment": "Every attribute is optional and every absent attribute is UNMEASURED, never assumed-correct. A row that carries only a refdes and an evidence locator proves that somebody looked at that part and recorded nothing about it.",
+      "properties": {
+        "refdes": {"type": "string", "minLength": 1},
+        "present": {"type": ["boolean", "null"]},
+        "value": {"type": ["string", "null"]},
+        "package": {"type": ["string", "null"]},
+        "rotation_deg": {"type": ["number", "null"]},
+        "side": {"enum": ["top", "bottom", null]},
+        "evidence": {"$ref": "#/$defs/evidence_ref"}
+      },
+      "additionalProperties": false
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": ["id", "type", "locator", "sha256", "recorded_utc"],
+      "$comment": "The locator + digest exist so a reader can go and look at the artefact; the DECISION is in the record beside it. This tool never opens the locator to form an opinion of its own.",
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "type": {
+          "enum": ["AOI", "XRAY", "PHOTO", "MANUAL", "ICT", "VENDOR_REPORT", "ASSEMBLER_RECORD"],
+          "$comment": "PHOTO and MANUAL are INTERPRETIVE: they carry no acceptance decision unless signoff_standard names the criterion the observer judged against. Without it the affected result is SCREEN_ONLY, not GREEN."
+        },
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "recorded_utc": {"type": "string", "format": "date-time"},
+        "signoff_standard": {"type": ["string", "null"]},
+        "operator": {"type": ["string", "null"]},
+        "board_revision": {
+          "type": ["string", "null"],
+          "$comment": "When present and different from identity.board_revision, the evidence belongs to another board and the gate is STALE."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

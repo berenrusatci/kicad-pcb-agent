@@ -1,0 +1,60 @@
+{
+  "schema_version": "connector-rail-map/v1",
+  "note": "FIXTURE. Every number, document name and part here is invented to exercise tools/scripts/connector_current.py. It is not a datasheet reading and must never be copied into a design. The real file belongs in system-planning/, not in tools/.",
+  "links": [
+    {
+      "rail": "FIXTURE_5V_IN",
+      "refdes": "J1",
+      "contact_group": {
+        "name": "VBUS pair",
+        "contacts": ["1", "2"],
+        "return_contacts": ["3", "4"]
+      },
+      "capacity": {
+        "policy": "sourced_group_rating",
+        "group_rated_a": 3.4,
+        "source": {
+          "document": "FIXTURE-PWR-2P datasheet",
+          "revision": "Rev 0 (fixture)",
+          "locator": "fig. 7, two carriers, 85 C ambient",
+          "accessed": "2026-08-10",
+          "note": "3.4 A for the PAIR, read off the curve for two carriers. It is deliberately LESS than 2 x 2.1 A: parallel contacts do not add linearly."
+        }
+      },
+      "demand": {
+        "source": {
+          "document": "FIXTURE power budget",
+          "revision": "Rev 0 (fixture)",
+          "locator": "rails.FIXTURE_5V_IN.i_max_a",
+          "accessed": "2026-08-10"
+        }
+      }
+    },
+    {
+      "rail": "FIXTURE_3V3",
+      "refdes": "J2",
+      "contact_group": {
+        "name": "3V3 supply contact",
+        "contacts": ["11"],
+        "return_contacts": ["12"]
+      },
+      "capacity": {
+        "policy": "single_contact"
+      },
+      "demand": {
+        "source": {
+          "document": "FIXTURE power budget",
+          "revision": "Rev 0 (fixture)",
+          "locator": "rails.FIXTURE_3V3.i_max_a",
+          "accessed": "2026-08-10"
+        }
+      }
+    }
+  ],
+  "excluded_rails": [
+    {
+      "rail": "FIXTURE_1V8",
+      "reason": "FIXTURE: generated on-board and consumed on-board; it crosses no connector contact."
+    }
+  ]
+}

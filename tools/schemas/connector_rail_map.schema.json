@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/connector-rail-map/v1",
+  "title": "ProjectE rail -> connector contact-group map",
+  "description": "Input to tools/scripts/connector_current.py. Which rail passes through which contact group of which connector is a PROJECT fact and belongs in system-planning/, never inside the checker. This file also carries the provenance that neither of the two artefacts it binds can hold: rail-tree/v1 pins exactly seven fields per rail and forbids others, so there is nowhere in it to say where i_max_a came from; connector-spec/v1 has a per-CONTACT current object and no field for a per-GROUP rating.",
+  "type": "object",
+  "required": ["schema_version", "links"],
+  "properties": {
+    "schema_version": {"const": "connector-rail-map/v1"},
+    "note": {"type": "string"},
+    "links": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/link"},
+      "$comment": "May be empty only if every rail appears in excluded_rails; the checker reports an unaccounted rail as MAPPING_INCOMPLETE -> NO_COVERAGE."
+    },
+    "excluded_rails": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/exclusion"},
+      "$comment": "Rails that cross no connector. Declared rather than inferred: scanned + excluded == eligible is the coverage rule, and a rail that is silently neither is a rail nobody checked."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "link": {
+      "type": "object",
+      "required": ["rail", "refdes", "contact_group", "capacity", "demand"],
+      "properties": {
+        "rail": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Key into rail_tree.rails. A name the rail tree does not contain is RAIL_NOT_IN_RAIL_TREE, never a quiet skip."
+        },
+        "refdes": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Key into connector_spec.connectors[].refdes."
+        },
+        "contact_group": {"$ref": "#/$defs/contact_group"},
+        "capacity": {"$ref": "#/$defs/capacity"},
+        "demand": {"$ref": "#/$defs/demand"}
+      },
+      "additionalProperties": false
+    },
+    "contact_group": {
+      "type": "object",
+      "required": ["contacts"],
+      "properties": {
+        "name": {"type": "string"},
+        "contacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": ["string", "integer"]},
+          "$comment": "The contacts that carry this rail. Never defaulted to one: the group size is exactly the question a capacity figure has to have been read for."
+        },
+        "return_contacts": {
+          "type": "array",
+          "items": {"type": ["string", "integer"]},
+          "$comment": "Informational here. konnektor SKILL 3b: the GND return must be carried by the same number of contacts; this checker does not enforce that and says so in its limits."
+        }
+      },
+      "additionalProperties": false
+    },
+    "capacity": {
+      "type": "object",
+      "required": ["policy"],
+      "properties": {
+        "policy": {
+          "enum": ["single_contact", "sourced_group_rating"],
+          "$comment": "There is no third option and no default. 'n_times_rated' and its spellings do not load: the centre contact runs hottest, its resistance rises and it sheds current to the outer ones, so N contacts do not carry N times one contact's current."
+        },
+        "group_rated_a": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "$comment": "Required by sourced_group_rating. READ off the derating curve for THIS grouping at the ambient the thermal report predicts - not computed from the per-contact figure."
+        },
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": false,
+      "$comment": "single_contact takes its number from connector_spec.current.derated_a_per_contact, so its source is connector_spec.datasheet_locator plus derating_basis/ambient_c. sourced_group_rating states the number here, so it states its source here too."
+    },
+    "demand": {
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": false,
+      "$comment": "The VALUE is read from rail_tree.rails[].i_max_a, never from here. Only the provenance lives here, because rail-tree/v1 has no field for it."
+    },
+    "exclusion": {
+      "type": "object",
+      "required": ["rail", "reason"],
+      "properties": {
+        "rail": {"type": "string", "minLength": 1},
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "An exclusion without a stated reason is how a rail leaves the numerator and the denominator at the same time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["document", "revision", "locator", "accessed"],
+      "properties": {
+        "document": {"type": "string", "minLength": 1},
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "A document without a revision names a FAMILY of documents; the one that was read is not recoverable later. Same rule as common/vendormodel.py PROVENANCE_FIELDS."
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Which table, figure, page or field. 'the datasheet' does not answer 'which curve, at which ambient'."
+        },
+        "accessed": {"type": "string", "minLength": 1},
+        "note": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

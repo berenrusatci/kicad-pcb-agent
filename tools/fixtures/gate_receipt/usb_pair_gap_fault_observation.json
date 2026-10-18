@@ -1,0 +1,10 @@
+{
+  "baseline_sha256": "84f8a452f1f5cb991889e969f7e125943ac1066e57a469adcbe47767842dce31",
+  "delta_mm": 0.3,
+  "observed_failed_metrics": [
+    "U1_J2.review_compatibility_chord_edge_gap_mm.p50",
+    "U1_J2.review_compatibility_chord_edge_gap_mm.in_band_fraction"
+  ],
+  "source_proof": "25_usb_pair_receipt_current.json",
+  "status": "rejected"
+}

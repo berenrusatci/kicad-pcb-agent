@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/promotion-report/v1",
+  "title": "ProjectE promotion gate report",
+  "description": "stdout of scripts/promote.py. This is the OPERATOR-facing summary; the audit artifact is the gate-receipt/v1 named by 'receipt', which gate_receipt.py validates independently.",
+  "type": "object",
+  "required": ["schema_version", "status", "project_dir", "scratch_id",
+               "receipt", "bundle", "applied", "gates", "blockers",
+               "reason_codes", "board_sha256", "ruleset_sha256",
+               "command_sha256"],
+  "properties": {
+    "schema_version": {"const": "promotion-report/v1"},
+    "status": {"enum": ["GREEN", "RED"]},
+    "project_dir": {"type": "string", "minLength": 1},
+    "scratch_id": {"type": "string", "minLength": 1},
+    "scratch_path": {"type": "string"},
+    "receipt": {"type": "string", "minLength": 1},
+    "bundle": {"type": "string", "minLength": 1},
+    "applied": {"type": "boolean"},
+    "gates": {
+      "type": "object",
+      "required": ["drc", "erc", "contract", "decisions"],
+      "properties": {
+        "drc": {"enum": ["PASS", "FAIL", "NO_COVERAGE", "EXCLUDED"]},
+        "erc": {"enum": ["PASS", "FAIL", "NO_COVERAGE", "EXCLUDED"]},
+        "contract": {"enum": ["PASS", "FAIL", "NO_COVERAGE", "EXCLUDED"]},
+        "decisions": {"enum": ["PASS", "FAIL", "NO_COVERAGE", "EXCLUDED"]}
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "board_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ruleset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "command_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git": {"type": "object"},
+    "receipt_validation": {
+      "type": "object",
+      "description": "promote.py runs gate_receipt.py on its own output; a producer that cannot pass its own consumer is broken.",
+      "properties": {
+        "exit_code": {"type": "integer"},
+        "effective_status": {"type": "string"},
+        "reason_codes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  },
+  "$comment": "status GREEN requires every gate PASS or EXCLUDED-with-reason and zero blockers. The three digests are kept from the archive's promotion_<ts>.json for continuity; unlike the archive's, ruleset_sha256 is derived from a listed manifest and is therefore reproducible."
+}

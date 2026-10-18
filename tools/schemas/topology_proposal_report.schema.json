@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/topology-proposal-report/v1",
+  "title": "ProjectE topology change proposals",
+  "description": "Output of tools/scripts/topology_advise.py. Every other solver in this bundle optimises WITHIN a fixed topology; this proposes changing it. What comes out are hypotheses, not fixes: each names what it adds, which way a metric moves, the tool that would verify it, the observation that would refute it, and its cost. 'runs_no_solver' and 'measures_nothing' are both pinned true - a magnitude in this report would be read as a result.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "signoff",
+    "measures_nothing",
+    "runs_no_solver",
+    "context",
+    "observations",
+    "proposals",
+    "uncovered",
+    "load_errors",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "topology-proposal-report/v1"},
+    "tool": {"const": "topology_advise"},
+    "status": {
+      "enum": ["GREEN", "RED", "NO_COVERAGE"],
+      "description": "RED only when an input or the catalogue itself failed to load. The tool measures nothing, so it cannot find a defect in a design; a shortfall it cannot address is NO_COVERAGE."
+    },
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "phase": {"const": "improvement"},
+    "signoff": {"const": false},
+    "measures_nothing": {
+      "const": true,
+      "description": "Triggered by shortfalls other tools measured. Measuring here would give the repo two answers to one question, which is the #51 and #54 failure."
+    },
+    "runs_no_solver": {
+      "const": true,
+      "description": "Directions come from topological arguments. Magnitudes come from the named verifier and appear in ITS report, never here."
+    },
+    "context": {
+      "type": "object",
+      "description": "Facts supplied by the caller that rule transformations out. Never inferred: whether a reference plane is split is something reference_plane.py measures."
+    },
+    "observations": {
+      "type": "array",
+      "description": "Only FAIL and NO_COVERAGE findings become observations. A PASS is not a shortfall, and proposing against one is how a tool starts recommending work for its own sake.",
+      "items": {
+        "type": "object",
+        "required": ["tool", "status"],
+        "properties": {
+          "tool": {"type": "string", "minLength": 1},
+          "check": {"type": "string"},
+          "status": {"enum": ["FAIL", "NO_COVERAGE"]},
+          "problems": {"type": "array", "items": {"type": "string"}},
+          "reason_codes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["transform", "title", "kind", "offered", "triggered_by", "detail"],
+        "properties": {
+          "transform": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["topology_change", "already_owned"]},
+          "offered": {"type": "boolean"},
+          "issue": {
+            "enum": ["EXCLUDED", "ALREADY_OWNED"],
+            "description": "An excluded proposal is an ANSWER, not a violation - often the most informative line in the report."
+          },
+          "triggered_by": {"type": "object"},
+          "adds": {"type": "string"},
+          "predicted": {
+            "type": "object",
+            "required": ["metric", "direction", "magnitude"],
+            "properties": {
+              "metric": {"type": "string", "minLength": 1},
+              "direction": {"enum": ["decrease", "increase"]},
+              "magnitude": {
+                "type": "null",
+                "description": "Always null, and required to be present so the absence is explicit rather than an omission a reader might fill in. The verifier named in verify_with produces the quantity."
+              }
+            }
+          },
+          "mechanism": {"type": "string"},
+          "verify_with": {"type": "string"},
+          "refuted_if": {"type": "string"},
+          "cost": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Required on every offered proposal. One listing only benefits is a sales pitch."
+          },
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "uncovered": {
+      "type": "array",
+      "description": "Shortfalls the catalogue has nothing to say about. Listed rather than omitted: a proposal list that silently drops what it could not address looks like complete coverage of the report it read.",
+      "items": {
+        "type": "object",
+        "required": ["tool"],
+        "properties": {
+          "tool": {"type": "string"},
+          "check": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "load_errors": {"type": "array"},
+    "findings": {"type": "array"},
+    "coverage": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

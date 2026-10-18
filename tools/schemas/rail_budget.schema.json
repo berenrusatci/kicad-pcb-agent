@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/rail-budget/v1",
+  "title": "ProjectE power-up sequencing and per-rail noise budget",
+  "description": "Output of tools/scripts/board/rail_budget.py. Both halves concern a property no ERC and no DRC can reach: a netlist proves an enable pin is CONNECTED, never that the rail attached to it can turn the regulator on, because that needs a datasheet threshold and a rail voltage and a netlist carries neither. A board can be ERC-clean, DRC-clean, and still have a regulator whose enable clears its own V_EN(HI) at room temperature and misses it at the cold corner.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "phase",
+    "rails",
+    "enable_tiers",
+    "enable_checks",
+    "noise",
+    "findings",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": "rail-budget/v1"},
+    "tool": {"const": "rail_budget"},
+    "status": {"enum": ["GREEN", "RED", "NO_COVERAGE"]},
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "phase": {"const": "early_schematic"},
+    "rails": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "voltage_v", "enable_source"],
+        "properties": {
+          "name": {"type": "string"},
+          "voltage_v": {"type": "number"},
+          "enable_source": {"type": "string"},
+          "en_threshold_v": {
+            "type": ["number", "null"],
+            "description": "Datasheet V_EN(HI). null means it was not declared, which is reported as NO_COVERAGE rather than filled in - an invented threshold turns an unchecked path into an apparently checked one."
+          }
+        }
+      }
+    },
+    "enable_tiers": {
+      "type": "array",
+      "description": "Rails grouped into the tiers the enable graph FORCES. Rails inside one tier come up together: the graph does not order them, and claiming it does would invent a sequence the hardware never promised. A cycle is refused outright, because a topological sort that drops the cycle's members reports a shorter and entirely plausible order.",
+      "items": {"type": "array", "items": {"type": "string"}}
+    },
+    "declared_order": {
+      "type": ["array", "null"],
+      "description": "The written power-up order, compared against the enable graph. Only an INVERSION counts as a contradiction: a document ordering two rails the graph leaves in one tier is stating an intent the hardware permits, not contradicting it."
+    },
+    "enable_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rail", "source", "reason_codes"],
+        "properties": {
+          "rail": {"type": "string"},
+          "source": {"type": "string"},
+          "source_voltage_v": {"type": ["number", "null"]},
+          "threshold_v": {"type": ["number", "null"]},
+          "margin_v": {
+            "type": ["number", "null"],
+            "description": "Source rail minus threshold. The sign decides whether the regulator turns on at all; the size decides whether it still does over temperature and tolerance, which is why a thin positive margin is a separate finding from a negative one."
+          },
+          "reason_codes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "noise": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rail", "total_v", "deterministic_v", "random_rss_v", "contributors", "rule", "reason_codes"],
+        "properties": {
+          "rail": {"type": "string"},
+          "budget_v": {
+            "type": ["number", "null"],
+            "description": "null means the total was computed but nothing called it acceptable, because nothing said what acceptable was."
+          },
+          "headroom_v": {"type": ["number", "null"]},
+          "deterministic_v": {"type": "number"},
+          "random_rss_v": {"type": "number"},
+          "total_v": {"type": "number"},
+          "rule": {
+            "type": "string",
+            "description": "Deterministic contributors are correlated and add linearly; random ones add in quadrature. Summing a deterministic term in quadrature UNDERSTATES it, which is the direction that ships, so a contributor's kind is not cosmetic."
+          },
+          "contributors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "volts", "kind"],
+              "properties": {
+                "name": {"type": "string"},
+                "volts": {"type": "number", "minimum": 0},
+                "kind": {"enum": ["deterministic", "random"]}
+              }
+            }
+          },
+          "reason_codes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "findings": {"type": "array"},
+    "coverage": {"type": "object"}
+  }
+}

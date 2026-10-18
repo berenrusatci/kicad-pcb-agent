@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pcb-agent-tools"
+version = "1.0.0"
+description = "PCB design-agent tooling: contract validators, SI screens, board checkers, schematic wiring, MCP servers"
+requires-python = ">=3.11"
+# NO RUNTIME DEPENDENCIES ON PURPOSE.
+#
+# Every validator and solver is stdlib-only, and both MCP servers speak raw
+# stdio JSON-RPC rather than importing an `mcp` package. The only external
+# pieces are system binaries and the KiCad SWIG module, which cannot come
+# from PyPI:
+#   kicad-cli   system binary  - sch/pcb export, ERC, DRC
+#   pcbnew      KiCad SWIG     - required ONLY by scripts/board/*
+#   ngspice     system binary  - power/analog analysis
+dependencies = []
+
+[project.optional-dependencies]
+# pytest is NOT required. The whole suite is unittest-based and runs with
+# `make test` or `python3 -m unittest`. Install this extra only if you prefer
+# pytest's runner/output; it changes nothing about the tests themselves.
+test = ["pytest>=7"]
+
+[project.scripts]
+pcb-context-pack = "scripts.context_pack:main"
+pcb-gate-receipt = "scripts.gate_receipt:main"
+pcb-research-promotion-gate = "scripts.research_promotion_gate:main"
+pcb-crosstalk-thinning = "scripts.crosstalk_thinning:main"
+pcb-zdiff-solver = "scripts.zdiff_solver:main"
+pcb-sync-tool-registry = "scripts.sync_tool_registry:main"
+
+[tool.setuptools]
+packages = [
+    "common", "scripts", "servers",
+    "scripts.board", "scripts.sch", "scripts.ipc", "scripts.route",
+    "scripts.place", "scripts.sim", "scripts.production", "scripts.report",
+    "scripts.memory",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["*Tests", "Test*", "Protocol", "ToolContract", "Decisions",
+                  "SelfTest", "CliContract", "Monotonicity", "DomainGuard",
+                  "SharedImpedanceModel", "Hashing", "Units", "Geometry",
+                  "SiModels", "SExpr", "Paths", "Coverage", "FindingsEnvelope",
+                  "ReportIo", "Ids"]
+python_functions = ["test_*"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E402 is expected: every script inserts tools/ on sys.path before importing
+# `common`, so those imports are deliberately not at the top of the file.
+ignore = ["E402"]

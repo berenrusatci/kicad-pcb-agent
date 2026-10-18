@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/route-result/v1",
+  "title": "ProjectE grid A* routing result",
+  "description": "Output of scripts/route/grid_astar.py: one polyline per net, plus the routing coverage finding. The source tool had no report at all - its __main__ only ran self-tests and printed PASS/FAIL prose to stdout.",
+  "type": "object",
+  "required": ["schema_version", "tool", "input", "params", "obstacle_count", "routes", "checks", "summary"],
+  "properties": {
+    "schema_version": {"const": "route-result/v1"},
+    "tool": {"const": "grid_astar"},
+    "input": {"type": "string", "minLength": 1, "description": "Path of the positional JSON routing problem."},
+    "params": {
+      "type": "object",
+      "required": ["cell_mm", "clearance_mm", "max_nodes"],
+      "properties": {
+        "cell_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Grid resolution. Must be smaller than half of (trace width + clearance): a corridor narrower than one cell can be missed."
+        },
+        "clearance_mm": {"type": "number", "minimum": 0},
+        "max_nodes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Mandatory search budget. Exceeding it is a clean FAIL, never an unbounded search."
+        }
+      },
+      "additionalProperties": false
+    },
+    "obstacle_count": {"type": "integer", "minimum": 0},
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["net", "found", "reason", "nodes_visited", "path_mm", "length_mm"],
+        "properties": {
+          "net": {"type": "string", "minLength": 1},
+          "found": {"type": "boolean"},
+          "reason": {"type": "string"},
+          "nodes_visited": {"type": "integer", "minimum": 0},
+          "path_mm": {
+            "type": "array",
+            "description": "Collinear-simplified polyline. Empty when found is false.",
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {"type": "number"}
+            }
+          },
+          "length_mm": {"type": "number", "minimum": 0}
+        },
+        "additionalProperties": false
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["PASS", "FAIL", "NO_COVERAGE"],
+      "properties": {
+        "PASS": {"type": "integer", "minimum": 0},
+        "FAIL": {"type": "integer", "minimum": 0},
+        "NO_COVERAGE": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["check", "status", "scanned", "violations", "detail"],
+      "properties": {
+        "check": {"const": "grid_astar_routing"},
+        "status": {"enum": ["PASS", "FAIL", "NO_COVERAGE"]},
+        "scanned": {"type": "integer", "minimum": 0},
+        "violations": {"type": "array"},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "A problem file with no nets is NO_COVERAGE and exits 1: 'nothing was routed' must not read as 'everything routed'. The obstacle model is two-phase - box obstacles stay rigid AABBs, segment obstacles additionally get a true point-to-segment narrow-phase test so the empty corners of a diagonal track's AABB are not falsely blocked."
+}

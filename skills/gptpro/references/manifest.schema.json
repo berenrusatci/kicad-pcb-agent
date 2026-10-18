@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gptpro/manifest.schema.json",
+  "title": "GPTPro bundle MANIFEST.json",
+  "$comment": "Ships INSIDE each bundle zip, at <bundle>/MANIFEST.json. Its consumer is the external model. It answers the only question that separates 'the repo does not contain this' from 'this was withheld from me': what scope was declared, what was staged, what was dropped and under whose policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "snapshot_id", "bundle_name", "bundle_purpose", "authority",
+    "repo_commit", "dirty", "export_started_utc", "export_finished_utc",
+    "bundles_conf_sha256", "export_tool_sha256", "sources", "files",
+    "coverage_files", "coverage_bytes", "exclusions", "missing_sources",
+    "derived_views", "sibling_bundles"
+  ],
+  "properties": {
+    "schema_version": {"const": "gptpro-handoff/v1"},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "bundle_name": {"type": "string", "minLength": 1},
+    "bundle_purpose": {"type": "string", "minLength": 1},
+    "generator": {"type": "string"},
+    "authority": {
+      "type": "object",
+      "$comment": "The boundary is published in the artifact itself so a reader cannot mistake a packaging receipt for a design verdict.",
+      "required": ["asserts", "does_not_assert"],
+      "properties": {
+        "asserts": {"type": "string"},
+        "does_not_assert": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "repo_commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+    "branch": {"type": ["string", "null"]},
+    "dirty": {
+      "type": ["boolean", "null"],
+      "$comment": "null means PROJECT_ROOT is not a git worktree, which is NOT the same as clean."
+    },
+    "dirty_inventory_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "$comment": "sha256 over the sorted `git status --porcelain=v1 -uall` lines. A commit SHA alone describes a dirty tree accurately and about the wrong object; this pins which drift."
+    },
+    "export_started_utc": {"type": "string"},
+    "export_finished_utc": {"type": "string"},
+    "bundles_conf_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "export_tool_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "export_tool_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "sha256"],
+        "properties": {
+          "name": {"type": "string"},
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "$comment": "The literal dir:/file: declarations from bundles.conf, with their required/optional disposition. A source that was absent is listed here with present=false; silence is not an option.",
+      "items": {
+        "type": "object",
+        "required": ["decl", "kind", "path", "disposition", "present"],
+        "properties": {
+          "decl": {"type": "string"},
+          "kind": {"enum": ["dir", "file"]},
+          "path": {"type": "string"},
+          "disposition": {"enum": ["required", "optional"]},
+          "present": {"type": "boolean"},
+          "eligible_files": {"type": "integer", "minimum": 0},
+          "eligible_bytes": {"type": "integer", "minimum": 0},
+          "scanned_files": {"type": "integer", "minimum": 0},
+          "scanned_bytes": {"type": "integer", "minimum": 0},
+          "symlinks_skipped": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "$comment": "MANIFEST.json is deliberately absent from this list: a file cannot carry its own hash. Its hash lives in handoff_receipt.json, outside the zip.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "repo_path", "size_bytes", "sha256", "source_decl", "kind"],
+        "properties": {
+          "path": {"type": "string", "$comment": "path inside the bundle zip"},
+          "repo_path": {"type": "string", "$comment": "path relative to PROJECT_ROOT; `file:` sources may be re-homed by their :subdir, so the two differ and both are needed to re-anchor a citation"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "source_decl": {"type": "string"},
+          "kind": {
+            "enum": ["raw", "derived", "policy", "evidence"],
+            "$comment": "Coarse routing hint for a reader, never a gate input."
+          }
+        }
+      }
+    },
+    "coverage_files": {"$ref": "#/$defs/coverage"},
+    "coverage_bytes": {"$ref": "#/$defs/coverage"},
+    "exclusions": {
+      "type": "array",
+      "$comment": "Rolled up by (pattern, policy_source). Per-file paths are intentionally NOT here: what a reader is owed about a withheld file is that it exists, not its name. The operator's receipt keeps the full list.",
+      "items": {
+        "type": "object",
+        "required": ["pattern", "policy_source", "reason", "count", "bytes"],
+        "properties": {
+          "pattern": {"type": "string"},
+          "policy_source": {
+            "enum": ["tool_global", "project_config", "source_decl"],
+            "$comment": "tool_global = the export tool's own default; project_config = this repo decided it; source_decl = one bundle's own declaration, usually because a sibling bundle carries that scope."
+          },
+          "reason": {"type": "string"},
+          "count": {"type": "integer", "minimum": 1},
+          "bytes": {"type": "integer", "minimum": 0},
+          "top_level_scopes": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "symlinks_skipped": {"type": "array", "items": {"type": "string"}},
+    "missing_sources": {
+      "type": "array",
+      "items": {"type": "string"},
+      "$comment": "Required sources that were absent. A non-empty list means the export aborted, so a published manifest always has this empty — it is present so the field cannot be confused with 'not checked'."
+    },
+    "optional_sources_absent": {"type": "array", "items": {"type": "string"}},
+    "derived_views": {
+      "type": "array",
+      "$comment": "Any generated index shipped alongside the raw files. Each row binds to its backing hashes and is authority=screen_only: a derived view is a presentation, never a sign-off surface.",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "generator", "generator_sha256", "derived_from", "authority"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "generator": {"type": "string"},
+          "generator_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "derived_from": {"type": "array", "items": {"type": "string"}},
+          "authority": {"const": "screen_only"}
+        }
+      }
+    },
+    "sibling_bundles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "purpose"],
+        "properties": {"name": {"type": "string"}, "purpose": {"type": "string"}}
+      }
+    },
+    "blind_spot_note": {"type": "string"}
+  },
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "scanned", "excluded", "violations"],
+      "$comment": "pcb-agent/skills/_shared/coverage-gate.md: scanned + excluded == eligible, violations <= scanned, scanned <= eligible. scanned == 0 is NO_COVERAGE, never GREEN.",
+      "properties": {
+        "eligible": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "excluded": {"type": "integer", "minimum": 0},
+        "violations": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

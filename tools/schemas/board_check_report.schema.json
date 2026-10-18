@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/board-check-report/v1",
+  "title": "ProjectE board checker report envelope",
+  "description": "Shared output shape for dfm_emc_check, mask_dam, stitch_density and via_stub. Before consolidation these four tools emitted four different top-level shapes and none carried a schema_version.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "board",
+    "design",
+    "params",
+    "metrics",
+    "by_check",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "board-check-report/v1"
+    },
+    "tool": {
+      "enum": [
+        "dfm_emc_check",
+        "mask_dam",
+        "stitch_density",
+        "via_stub"
+      ]
+    },
+    "board": {
+      "type": "string",
+      "minLength": 1
+    },
+    "params": {
+      "type": "object",
+      "description": "Tool-specific scalars. Previously scattered across the top level.",
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "PASS",
+        "FAIL",
+        "NO_COVERAGE"
+      ],
+      "properties": {
+        "PASS": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "FAIL": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "NO_COVERAGE": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "design": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "description": "The board this report measured, with its digest. REQUIRED: an assertion cannot tie a check to an artifact it cannot hash, and an untieable report is SCREEN_ONLY however good the number in it is. sha256 is null when the path could not be read - loud, not absent.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "check name -> violation count, or null when the check measured nothing. Exists because `checks` is a list and the assertion selector grammar addresses a.b paths; without this map a rule can name the tool but cannot point at the check it cares about. NO_COVERAGE is null, NOT 0: a numeric 0 for an unmeasured check compares equal to a threshold and reports PASS on a check that examined nothing - the 0 == 0 agreement drc_gate.py hit on parity_difference_count. The verdict still lives in `checks`.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "by_check": {
+      "type": "object",
+      "description": "check name -> {status, scanned, violations}. The name-keyed door into the report that carries COVERAGE, which `metrics` cannot. These are the two halves of one fix, pointing in opposite directions: `metrics` is null for an unmeasured check so a threshold comparison cannot falsely SUCCEED, and `by_check` lets a rule affirmatively assert the check RAN. `by_check.X.status equals PASS` means ran + examined something + clean, because Finding refuses to build a scanned==0 PASS. Null alone turns a vacuous PASS into a type error, which reads as a broken rule rather than an empty check; by_check alone would leave existing metrics.* bindings comparing 0 to 0. Assertions that gate on a measurement bind here. NOTE the denominator is only as honest as the producer: `scanned` must be the population the check actually examined, not a larger set that happens to be non-empty.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "status",
+          "scanned",
+          "violations"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NO_COVERAGE"
+            ]
+          },
+          "scanned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "violations": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": [
+        "check",
+        "status",
+        "scanned",
+        "violations",
+        "detail"
+      ],
+      "properties": {
+        "check": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NO_COVERAGE"
+          ]
+        },
+        "scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violations": {
+          "type": "array"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "scanned == 0 MUST yield status NO_COVERAGE, never PASS. NOTE: the exit code is currently 1 only when FAIL > 0; NO_COVERAGE exits 0 for backwards compatibility with the documented sibling-tool contract, so a caller MUST inspect summary.NO_COVERAGE and not rely on the exit code alone."
+}

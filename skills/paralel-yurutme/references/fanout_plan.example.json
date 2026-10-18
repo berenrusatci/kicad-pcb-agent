@@ -1,0 +1,102 @@
+{
+  "schema_version": "fanout-plan/v1",
+  "metric_name": "fanout_coverage",
+  "signoff": false,
+  "run_id": "2026-08-11T09-00-00Z-faz1",
+  "decided_at": "2026-08-11T09:00:00Z",
+  "units": [
+    {
+      "id": "guc-isil",
+      "decision": "FANOUT_APPROVED",
+      "reason": "Faz 1 kok dugumu; kendi artifact'ini yazar, hacimli rail hesabi ana baglama donmez.",
+      "writes": ["rail_tree.json", "thermal_budget.json"],
+      "reads": ["fab_capabilities.json", "Datasheets/RK3588_pinout.md"],
+      "failed_test": null,
+      "touches_board": false,
+      "profitability": {
+        "bulky_output": true,
+        "context_not_loaded": true,
+        "summarisable": true,
+        "own_deliverable": true
+      },
+      "envelope": {
+        "expected_runtime_class": "under_2min",
+        "background": false,
+        "own_report_path": "runs/2026-08-11T09-00-00Z-faz1/guc-isil/report.json",
+        "isolated_subprocess": false,
+        "timeout_s": null
+      }
+    },
+    {
+      "id": "mekanik-dxf",
+      "decision": "FANOUT_APPROVED",
+      "reason": "guc-isil ile ayni fazda, kesisen yazar yolu yok.",
+      "writes": ["mechanical_outline.dxf", "keepout_volumes.json"],
+      "reads": ["fab_capabilities.json"],
+      "failed_test": null,
+      "touches_board": false,
+      "profitability": {
+        "bulky_output": true,
+        "context_not_loaded": true,
+        "summarisable": true,
+        "own_deliverable": true
+      },
+      "envelope": {
+        "expected_runtime_class": "under_2min",
+        "background": false,
+        "own_report_path": "runs/2026-08-11T09-00-00Z-faz1/mekanik-dxf/report.json",
+        "isolated_subprocess": false,
+        "timeout_s": null
+      }
+    },
+    {
+      "id": "i2c-pullup-tek-sorgu",
+      "decision": "INLINE_CHEAPER",
+      "reason": "Tek dosya, tek hesap; dort sorunun hepsi hayir. Ayri ajan koordinasyon maliyetini geri kazanmiyor.",
+      "writes": ["i2c_pullup.json"],
+      "reads": ["50-level-i2c.kicad_sch"],
+      "failed_test": 3,
+      "touches_board": false,
+      "profitability": {
+        "bulky_output": false,
+        "context_not_loaded": false,
+        "summarisable": true,
+        "own_deliverable": false
+      },
+      "envelope": {
+        "expected_runtime_class": "under_2min",
+        "background": false,
+        "own_report_path": null,
+        "isolated_subprocess": false,
+        "timeout_s": null
+      }
+    },
+    {
+      "id": "konnektor-secimi",
+      "decision": "EXCLUDED",
+      "reason": "writes[] bildirilmedi; ayriklik kanitlanamaz, bu yuzden dala verilmez ve excluded olarak sayilir.",
+      "writes": [],
+      "reads": ["fab_capabilities.json"],
+      "failed_test": 2,
+      "touches_board": false
+    }
+  ],
+  "disjointness_proof": {
+    "method": "path_set_intersection",
+    "checked_paths": 5,
+    "pairs_compared": 3,
+    "intersections": []
+  },
+  "coverage": {
+    "eligible": 4,
+    "scanned": 3,
+    "excluded": 1,
+    "violations": 0
+  },
+  "domain_state": "FANOUT_APPROVED",
+  "gate": {
+    "verdict": "GREEN",
+    "reason": "3 birim tarandi, kesisim yok, board yazan birim yok."
+  },
+  "speedup_measured_s": null
+}

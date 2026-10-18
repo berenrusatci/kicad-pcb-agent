@@ -1,0 +1,55 @@
+{
+  "schema_version": "fab-profiles/v1",
+  "status": "REPRESENTATIVE_UNVERIFIED",
+  "$comment": "THESE NUMBERS ARE REPRESENTATIVE ONLY. Before committing to manufacturing, re-verify every value against the CURRENT capabilities page of the fabricator you picked: they change over time and differ by service/option. Extracted verbatim from pcb-tool-v2/pcb_stackup_planner.py FABRIKA_PROFILLERI, which carried the same warning and no source locator. Each profile therefore has revision_or_date/locator/accessed = null and status TBD; fill them in (and set status) when a real capabilities page is read. Field names match fixtures/references/fab_capabilities.example.json so a verified capability snapshot can replace a profile in place.",
+  "profiles": {
+    "JLCPCB_STANDARD": {
+      "name": "JLCPCB Standard",
+      "vendor": "JLCPCB",
+      "service": "Standard",
+      "revision_or_date": null,
+      "locator": null,
+      "accessed": null,
+      "limits": {
+        "min_trace_mm": 0.127,
+        "min_space_mm": 0.127,
+        "min_finished_hole_mm": 0.3,
+        "min_annular_ring_mm": 0.13,
+        "max_aspect_ratio": 8.0
+      },
+      "status": "TBD"
+    },
+    "JLCPCB_ADVANCED": {
+      "name": "JLCPCB Advanced",
+      "vendor": "JLCPCB",
+      "service": "Advanced",
+      "revision_or_date": null,
+      "locator": null,
+      "accessed": null,
+      "limits": {
+        "min_trace_mm": 0.09,
+        "min_space_mm": 0.09,
+        "min_finished_hole_mm": 0.2,
+        "min_annular_ring_mm": 0.1,
+        "max_aspect_ratio": 10.0
+      },
+      "status": "TBD"
+    },
+    "PCBWAY_STANDARD": {
+      "name": "PCBWay Standard",
+      "vendor": "PCBWay",
+      "service": "Standard",
+      "revision_or_date": null,
+      "locator": null,
+      "accessed": null,
+      "limits": {
+        "min_trace_mm": 0.09,
+        "min_space_mm": 0.09,
+        "min_finished_hole_mm": 0.25,
+        "min_annular_ring_mm": 0.125,
+        "max_aspect_ratio": 8.0
+      },
+      "status": "TBD"
+    }
+  }
+}

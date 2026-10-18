@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/crosstalk-thinning/v1",
+  "title": "ProjectE crosstalk NEXT screening and thinning decision",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "action",
+    "coverage",
+    "model_class",
+    "signoff",
+    "status_reason"
+  ],
+  "properties": {
+    "schema_version": {"const": "crosstalk-thinning/v1"},
+    "status": {
+      "enum": ["SAFE_TO_THIN", "CROSSTALK_RISK", "THINNING_BLOCKED", "NO_COVERAGE"]
+    },
+    "action": {
+      "enum": [
+        "THIN_TO_SUGGESTED_WIDTH",
+        "KEEP_WIDTH",
+        "INCREASE_SPACING",
+        "GATHER_EM_INPUTS",
+        "REVIEW"
+      ],
+      "description": "What the caller should do. Separate from the exit code, which answers 'is there a crosstalk problem?' rather than 'may I thin?'."
+    },
+    "status_reason": {"type": "string"},
+    "suggested_width_mm": {"type": "number", "exclusiveMinimum": 0},
+    "suggested_spacing_mm": {"type": "number", "exclusiveMinimum": 0},
+    "input": {"type": "object"},
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "geometry": {"type": "object"},
+        "baseline": {
+          "type": "object",
+          "properties": {
+            "z0_ohm": {
+              "type": ["number", "null"],
+              "description": "null when the geometry leaves the IPC-2141 domain. Never a negative impedance."
+            }
+          }
+        },
+        "suggested": {
+          "type": "object",
+          "properties": {
+            "z0_ohm": {"type": ["number", "null"]},
+            "z0_delta_percent": {"type": ["number", "null"]}
+          }
+        },
+        "noise_budget_ratio": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "coverage": {"$ref": "metric_coverage.schema.json"},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "confirm": {"type": "array", "items": {"type": "string"}},
+    "rationale": {"type": "array", "items": {"type": "string"}},
+    "model_class": {"const": "exploratory_closed_form"},
+    "signoff": {"const": false},
+    "evidence_origin": {"type": "string"},
+    "assurance_loop": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$comment": "Closed-form screening only. FEXT is NOT modelled; microstrip results always carry a CONFIRM. signoff is const false: controlled-impedance and fast-interface sign-off requires a 2D/3D field solver against the real fab stackup."
+}

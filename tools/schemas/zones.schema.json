@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/board-zones/v1",
+  "title": "PCB bolge (zone) sozlesmesi",
+  "description": "board_outline.json icindeki `zones[]` dizisinin sozlesmesi. Bir zone, kartin yuzeyinde YERLESIMI KISITLAYAN bir alandir: keepout (montaj deligi), koridor (yuksek hizli), serit (konnektor) veya kacis yelpazesi. Tuketiciler: scripts/board/verify_placement.py::check_zones, scripts/board/dfm_emc_check.py, scripts/board/mechanical_dxf.py, scripts/place/force_directed.py. Bu sozlesme cam-w-og05b10/layout/board_outline.json icindeki 7 gercek zone'dan TURETILDI - alan listesi uydurulmadi, o dosyadan sayildi. 2026-08-10 EKI: connector_band artik connector_ref + escape_margin_mm + escape_margin_src tasir; kacis koridoru y'si bu ucundan TURETILIR (onceden pcb_route.py icinde sabitti).",
+  "type": "object",
+  "required": [
+    "zones"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+/board_outline/v[0-9]+$",
+      "description": "Ornek: 'cam-w/board_outline/v1'. Deponun diger semalari `schema_version` const'u kullanir; board_outline dosyalari bunun yerine `$schema` etiketi tasir. Etiket ZORUNLU DEGIL cunku bu sozlesme yazildiginda dosya zaten vardi ve geriye donuk kirmamak gerekiyordu; ama varsa bu bicimde olmali."
+    },
+    "zones": {
+      "type": "array",
+      "description": "Bos dizi GECERLIDIR ama ANLAMSIZDIR: 'zone yok' ile 'zone tanimlanmadi' ayni sey degildir. Dogrulayici bos diziyi UYARI olarak bildirir, hata olarak degil.",
+      "items": {
+        "$ref": "#/$defs/zone"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "Kok nesnede additionalProperties ACIK: bu sozlesme yalniz `zones` anahtarini kapsar. board_outline.json ayrica outline/board/locked_components/mounting_holes/regions/open_links tasir ve bunlarin kendi sozlesmeleri (henuz) yoktur. Kok'u kapatmak, kapsam disi alanlari sahte ihlal haline getirirdi.",
+  "$defs": {
+    "copper_layer": {
+      "type": "string",
+      "pattern": "^(F\\.Cu|B\\.Cu|In([1-9]|[12][0-9]|30)\\.Cu)$",
+      "description": "GERCEK bir KiCad bakir katman adi. Serbest metin DEGIL: verify_placement.py bu degeri footprint'in katman adiyla (`F.Cu`/`B.Cu`) dogrudan karsilastirir; 'her iki yuz' gibi bir aciklama buraya yazilirsa karsilastirma sessizce hicbir zaman tutmaz ve keepout OLU olur."
+    },
+    "refdes": {
+      "type": "string",
+      "pattern": "^[A-Z]{1,3}[0-9]+$",
+      "description": "Referans tanimlayici (J101, U401, C5001, TP5005, D101). cam-w'de gozlemlenen tum degerler bu bicimde."
+    },
+    "rect_mm": {
+      "type": "object",
+      "description": "Sol-alt kosesi (x_mm, y_mm) olan dikdortgen. CERCEVE koordinati: origin sol-alt, +Y YUKARI (board_outline.frame). KiCad'in +Y ASAGI cercevesi DEGIL - donusum build_pcb.py::Frame icindedir.",
+      "required": [
+        "x_mm",
+        "y_mm",
+        "w_mm",
+        "h_mm"
+      ],
+      "properties": {
+        "x_mm": {
+          "type": "number",
+          "description": "Sol kenar."
+        },
+        "y_mm": {
+          "type": "number",
+          "description": "ALT kenar (+Y yukari)."
+        },
+        "w_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Sifir genislikli bir keepout hicbir seyi engellemez; bu yuzden > 0."
+        },
+        "h_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "circle_mm": {
+      "type": "object",
+      "description": "Merkez + yaricap. cam-w'de yalniz montaj deligi keepout'lari daire.",
+      "required": [
+        "x_mm",
+        "y_mm",
+        "r_mm"
+      ],
+      "properties": {
+        "x_mm": {
+          "type": "number",
+          "description": "Merkez x."
+        },
+        "y_mm": {
+          "type": "number",
+          "description": "Merkez y."
+        },
+        "r_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Yaricap. Sifir yaricap = keepout yok demektir."
+        }
+      },
+      "additionalProperties": false
+    },
+    "zone": {
+      "type": "object",
+      "description": "Tek bir bolge. Her bolge (a) NEREDE oldugunu tam olarak bir geometriyle, (b) NE yasakladigini `rule` ile, (c) sayilarin NEREDEN geldigini `src` ile soylemek ZORUNDADIR.",
+      "required": [
+        "id",
+        "kind",
+        "rule",
+        "src"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "description": "Dosya icinde BENZERSIZ. Ihlal mesajlari bu adi basar (verify_placement.py: \"'{z.get('id')}' icinde\"); iki zone ayni id'yi tasirsa ihlal hangisine ait anlasilmaz. Benzersizlik JSON Schema ile ifade edilemez, dogrulayici ayrica kontrol eder."
+        },
+        "kind": {
+          "enum": [
+            "connector_band",
+            "high_speed_corridor",
+            "escape_fanout",
+            "mounting_hole"
+          ],
+          "description": "Bolgenin turu. KAPALI liste: verify_placement.py::check_zones davranisini `kind`e gore secer (`high_speed_corridor` ve `escape_fanout` KATI kabul edilir, digerleri yalniz `exclude_layers` varsa uygulanir). Listede olmayan bir tur yazilirsa zone SESSIZCE gorevsizlesir - hicbir kontrol ona bakmaz. Yeni bir tur eklemek, once tuketicideki davranisi eklemek demektir."
+        },
+        "rect_mm": {
+          "$ref": "#/$defs/rect_mm"
+        },
+        "circle_mm": {
+          "$ref": "#/$defs/circle_mm"
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "INSAN ICIN aciklama ('F.Cu', 'B.Cu', 'her iki yuz'). Makine kararlarinda KULLANILMAZ - onun icin `exclude_layers` vardir. cam-w'de 'her iki yuz' degeri gectigi icin burada bakir katman adina zorlanamaz; bu belirsizlik tam olarak `exclude_layers`'in var olma sebebidir."
+        },
+        "exclude_layers": {
+          "type": "array",
+          "description": "Bu bolgede BILESEN DURAMAYAN katmanlar. Makinenin okudugu alan budur. Bir katman burada listeliyse o yuzde `allowed_refs` ISTISNASI YOKTUR (verify_placement.py once exclude_layers'e bakar).",
+          "items": {
+            "$ref": "#/$defs/copper_layer"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "escape_layer": {
+          "$ref": "#/$defs/copper_layer",
+          "description": "Kacis izlerinin kostugu katman. Iz o katmanda kostugu icin ayni katmanda bilesen duramaz -> `escape_layer` DAIMA `exclude_layers` icinde olmali. Bu tutarlilik JSON Schema ile ifade edilemez, dogrulayici kontrol eder."
+        },
+        "allowed_refs": {
+          "type": "array",
+          "description": "Bolge icinde durmasina ADIYLA izin verilen bileşenler. Bos birakmak ile alani hic yazmamak AYNI seydir (kimse giremez). Bir bileşenin burada olmasi, `exclude_layers`'daki bir yuzde durabilecegi anlamina GELMEZ.",
+          "items": {
+            "$ref": "#/$defs/refdes"
+          },
+          "uniqueItems": true
+        },
+        "allowed_refs_why": {
+          "type": "object",
+          "description": "ref -> istisnanin NEDENI. Bir istisnaya gerekce yazmak, istisnayi sonradan kaldirabilmenin tek yoludur. Anahtarlari `allowed_refs`in ALT KUMESI olmali (dogrulayici kontrol eder): listede olmayan bir ref'e gerekce yazmak, var olmayan bir izni savunmaktir.",
+          "propertyNames": {
+            "$ref": "#/$defs/refdes"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allowed_refs_constraint": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Istisnalarin uymak zorunda oldugu EK kosul (ornek: 'F.Cu'da kalmak ve via inis noktalarini kapatmamak zorundadir')."
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ZORUNLU. Bolgenin NE yasakladiginin insan tarafindan okunabilir ifadesi. Geometri nerede oldugunu soyler, `rule` niye orada oldugunu soyler; ikincisi olmadan bolge bir sonraki revizyonda gerekcesiz bir dikdortgene doner ve silinir."
+        },
+        "derivation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Geometrinin ARITMETIGI ('CSI pad 2 (x=12.00) ile pad 15 (x=18.50) arasi +-0.35 mm pay'). `src` kaynagi, `derivation` o kaynaktan sayiya giden yolu verir."
+        },
+        "src": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ZORUNLU. Sayilarin kaynagi: belge + bolum, veya bir olcumun tarihi ('docs/ANALIZ-yonlendirici-kararsizligi.md (2026-08-10, olculdu)'). Deponun kaynak disiplini: kaynaksiz limit = uydurma limit. Ust duzeydeki `source` alani bu zorunlulugu KARSILAMAZ - hangi zone'un hangi belgeden turedigi zone basina yazilmalidir."
+        },
+        "layer_note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Katman kararinin olcum kaydi ('OLCULDU 2026-08-10: koridorda 22 B.Cu + 18 F.Cu iz segmenti ve 7 via var')."
+        },
+        "connector_ref": {
+          "$ref": "#/$defs/refdes",
+          "description": "Bu bandin AIT OLDUGU konnektorun referansi. Yalniz kind=connector_band icin anlamlidir ve ORADA ZORUNLUDUR. Nicin: kacis serit y'si bu banttan turetilir (bkz. common/escape_geom.connector_escape_y_mm); bandi konnektore baglayan alan olmadan turetme hangi bandin hangi konnektore ait oldugunu TAHMIN etmek zorunda kalirdi. 2026-08-10 oncesi bu bag hic yoktu: iliski pcb_route.py icinde ESCAPE_Y = {'J201': 23.0, 'J101': 9.0} seklinde kaynak koda yaziliydi."
+        },
+        "escape_margin_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Duz kacis parcasinin bandin OTESINE ne kadar uzadigi (mm). Kacis y'si = bant ic kenari +/- bu pay. Pozitif olmali: 0 ya da negatif bir pay, parcanin bant icinde bitmesi demektir ve maze yonlendirici hala ped tarlasindan cikamaz."
+        },
+        "escape_margin_src": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Payin NEREDEN geldigi. Ayri bir alan cunku bu sayinin kaynagi zone'un genel `src`'sinden FARKLI olabilir: cam-w'de bandin kendisi docs/mekanik.md §7'den gelirken pay GERIYE TURETILMISTIR (eski ESCAPE_Y sabitlerini yeniden ureten deger) ve bagimsiz bir gerekcesi YOKTUR. Bu ayrimin kaybolmasi, gerekcesiz bir sayiyi gerekceli gostermek olurdu."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "rect_mm"
+          ],
+          "not": {
+            "required": [
+              "circle_mm"
+            ]
+          }
+        },
+        {
+          "required": [
+            "circle_mm"
+          ],
+          "not": {
+            "required": [
+              "rect_mm"
+            ]
+          }
+        }
+      ],
+      "dependentRequired": {
+        "escape_layer": [
+          "exclude_layers"
+        ],
+        "allowed_refs_why": [
+          "allowed_refs"
+        ],
+        "allowed_refs_constraint": [
+          "allowed_refs"
+        ]
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$comment": "connector_band, kacis y'sinin turetilebilmesi icin konnektore baglanmak ZORUNDA. Diger kind'lar bu alanlari tasimaz.",
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "connector_band"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "connector_ref",
+              "escape_margin_mm",
+              "escape_margin_src"
+            ]
+          },
+          "else": {
+            "$comment": "kind != connector_band ise bu alanlar ANLAMSIZDIR. Sessizce kabul etmek, bir montaj deligine konnektor referansi yazmayi mumkun kilardi: kimse okumaz, kimse itiraz etmez, ve dosya oldugundan daha cok sey beyan ediyormus gibi gorunur.",
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "connector_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "escape_margin_mm"
+                  ]
+                },
+                {
+                  "required": [
+                    "escape_margin_src"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

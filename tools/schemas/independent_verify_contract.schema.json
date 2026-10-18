@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/independent-verify-contract/v1",
+  "title": "ProjectE independent verification contract (input)",
+  "description": "The project-specific contract that scripts/independent_verify.py measures a board against. This file replaces the archived tool's contract source, which was a Markdown table inside the project DOCS tree ('DOCS/02_Stackup_and_Impedance.md' section 3 plus 'DOCS/katman_kontrati.json'). Parsing prose tables meant a reformatted heading silently emptied the contract and every check degraded to NO_COVERAGE; the contract now lives in one machine-checkable file whose shape is pinned here.",
+  "type": "object",
+  "required": ["schema_version", "nets"],
+  "properties": {
+    "schema_version": {"const": "independent-verify-contract/v1"},
+    "default_skew_tolerance_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Applied to any net entry that does not set skew_tolerance_mm. There is no built-in default value: an unstated tolerance is not invented."
+    },
+    "nets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Differential pair base name (without the P/N suffix) or a single net name."
+          },
+          "target_width_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Omit when the contract does not state a width; the width check is then skipped rather than measured against a guess."
+          },
+          "width_tolerance_mm": {"type": "number", "minimum": 0},
+          "skew_tolerance_mm": {"type": "number", "exclusiveMinimum": 0},
+          "p_suffix": {"type": "string"},
+          "n_suffix": {"type": "string"},
+          "allowed_layers": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+            "description": "When present, any segment or arc of this net on another layer is a leak. Vias are exempt: changing layer is what a via is for."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/measurement-record/v1",
+  "title": "ProjectE per-measurement lab record (L3 input)",
+  "description": "The INPUT contract of tools/scripts/lab/physical_measurement.py: one record per measurement a bench, instrument or accredited lab actually took. This file describes evidence arriving from OUTSIDE the flow - the tool that reads it drives no instrument and takes no measurement of its own. Every field here exists because its absence is a specific way for a number to look like evidence without being evidence: an uncalibrated reading, a measurement of a different board, a setup nobody can repeat, a Touchstone with no reference plane, a pre-compliance screen wearing a compliance label. The reader's Python is authoritative for the cross-field rules (unit binding against the accepted first article, digest verification against the raw capture, interval comparison against the supplied limit); this file documents the shape.",
+  "type": "object",
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": "measurement-record/v1"},
+    "campaign_id": {"type": ["string", "null"]},
+    "records": {"type": "array", "items": {"$ref": "#/$defs/record"}}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "record": {
+      "type": "object",
+      "required": [
+        "measurement_id",
+        "rule_id",
+        "evidence_origin",
+        "measurement_class",
+        "board_revision",
+        "board_hash",
+        "serial",
+        "lot",
+        "instrument_make",
+        "instrument_model",
+        "instrument_serial",
+        "calibration_id",
+        "calibration_date",
+        "method",
+        "setup",
+        "environment",
+        "load_state",
+        "value",
+        "units",
+        "uncertainty",
+        "guard_band",
+        "raw_data_sha256",
+        "compliance_class",
+        "assessor",
+        "timestamp"
+      ],
+      "properties": {
+        "measurement_id": {"type": "string", "minLength": 1},
+        "rule_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "The D row this measurement is offered against, as dogrulama-matrisi names it. A record whose rule_id matches no row is not evidence for anything; it is simply not counted."
+        },
+        "evidence_origin": {
+          "const": "PHYSICAL_MEASUREMENT",
+          "$comment": "Only physical evidence closes an L3 row. A TOOL_REPORT does not become physical by being copied into this file."
+        },
+        "measurement_class": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "rail_sequence / thermal / tdr / vna / sparam / near_field / esd / functional ... Must match the rule's declared class; a thermal number offered against a TDR row is INVALID_METRIC, not a near miss. tdr/vna/sparam/touchstone additionally require the S-parameter block below."
+        },
+        "board_revision": {"type": "string", "minLength": 1},
+        "board_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "$comment": "Must equal the accepted unit's board_hash. A measurement of a different board is not weaker evidence about this one - it is no evidence about this one, hence STALE rather than a warning."
+        },
+        "serial": {"type": "string", "minLength": 1},
+        "lot": {"type": "string", "minLength": 1},
+
+        "instrument_make": {"type": "string", "minLength": 1},
+        "instrument_model": {"type": "string", "minLength": 1},
+        "instrument_serial": {"type": "string", "minLength": 1},
+        "calibration_id": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Uncalibrated is not measured; it is read. Absence is NO_COVERAGE, not a slightly worse number."
+        },
+        "calibration_date": {"type": "string", "minLength": 1},
+
+        "method": {"type": "string", "minLength": 1},
+        "setup": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Probe, distance, angle, RBW, cable position, torque - whatever makes the run repeatable. emc-esd/SKILL.md §8: a setup that was not written down cannot be repeated, so it is not evidence."
+        },
+        "reference_plane": {
+          "type": ["string", "null"],
+          "$comment": "Mandatory for TDR/VNA/S-parameter evidence (highspeed-routing/SKILL.md §6). Where the measurement claims to start."
+        },
+        "environment": {"type": "string", "minLength": 1},
+        "load_state": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "What the board was doing. A thermal number at an unstated load point is a number about an unstated experiment."
+        },
+        "baseline_id": {
+          "type": ["string", "null"],
+          "$comment": "REQUIRED when compliance_class is pre_compliance. The only meaningful pre-compliance quantity is the before/after difference in the same setup; an absolute dBuV with no baseline is not even a screen."
+        },
+
+        "port_map": {
+          "type": ["array", "object", "string", "null"],
+          "$comment": "S-parameter block, all of it mandatory for tdr/vna/sparam/touchstone: port_map, reference_impedance, fixture, deembed_method, measurement_zone, reference_plane. Missing any of them is INVALID_SPARAM. Not a new rule - highspeed-routing/SKILL.md:349-351 already states it and names this exact outcome; this record is where it becomes enforceable."
+        },
+        "reference_impedance": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "fixture": {"type": ["string", "null"]},
+        "deembed_method": {
+          "type": ["string", "null"],
+          "$comment": "DECLARED, never inferred - the same discipline sim/correlate.py applies. An un-de-embedded launch moves both magnitude and delay, and no residual separates that from the thing being measured."
+        },
+        "measurement_zone": {"type": ["string", "null"]},
+
+        "value": {"type": "number"},
+        "units": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Must equal the limit's units. Comparing two different quantities is arithmetic whose answer looks exactly like a real one."
+        },
+        "uncertainty": {
+          "type": "number",
+          "minimum": 0,
+          "$comment": "Zero is a legitimate value and must be WRITTEN DOWN. Absence is not zero: the comparison widens the value by uncertainty + guard_band, and a margin inside that interval is INCONCLUSIVE, never PASS."
+        },
+        "guard_band": {"type": "number", "minimum": 0},
+
+        "raw_data_path": {
+          "type": ["string", "null"],
+          "$comment": "Touchstone / CSV / thermal capture / scope trace, relative to --raw-root. With --raw-root given, the file is hashed and a mismatch against raw_data_sha256 means the record and the capture are not the same measurement."
+        },
+        "raw_data_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+
+        "compliance_class": {
+          "enum": ["pre_compliance", "bench", "accredited_lab"],
+          "$comment": "NO DEFAULT. The whole point of the field is that a screen and a signoff must not be able to look alike. pre_compliance is always SCREEN_ONLY and is never compared with a formal limit; accredited_lab additionally requires lab_artifact."
+        },
+        "lab_artifact": {
+          "type": ["string", "null"],
+          "$comment": "The accredited laboratory's own report/profile reference. Declaring the class is not the same as holding the document; without it the row is CONFIRM."
+        },
+
+        "assessor": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "minLength": 1},
+        "notes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$comment": "Rules this schema CANNOT express, enforced only by physical_measurement.py: board_revision/board_hash/serial/lot must all equal the accepted first article's; the record's measurement_class must equal the rule's; units must equal the limit's units; raw_data_sha256 must match the file under --raw-root; the value is compared as an interval widened by uncertainty + guard_band; and there is NO field anywhere in this file that carries a limit - the limit arrives with the rule universe, carrying its own authority, or the row is NO_COVERAGE."
+}

@@ -1,0 +1,24 @@
+{
+  "profile": "review-2l",
+  "parameters": {
+    "sample_step_mm": 0.05,
+    "target_edge_gap_mm": 0.22,
+    "target_width_mm": 0.4
+  },
+  "stages": {
+    "J1_U1": {
+      "review_compatibility_chord_edge_gap_mm": {
+        "in_band_fraction": 0.496104,
+        "p50": 0.22,
+        "samples": 385
+      }
+    },
+    "U1_J2": {
+      "review_compatibility_chord_edge_gap_mm": {
+        "in_band_fraction": 0.737705,
+        "p50": 0.22,
+        "samples": 244
+      }
+    }
+  }
+}

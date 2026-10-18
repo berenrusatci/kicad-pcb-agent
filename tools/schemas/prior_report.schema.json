@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projecte.local/schemas/prior-report/v1",
+  "title": "ProjectE empirical prior report",
+  "description": "Output of tools/scripts/memory/priors.py. model_class is pinned to observed_frequency and that is the load-bearing field: queue item #63 cites Vivado ML Edition and Spectre FMC, which are FITTED models, and this is not one. There is no corpus here, so this counts what has been observed and reports the confidence interval around it. Relabelling it as a learned model would be a schema revision, not a wording change.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "model_class",
+    "signoff",
+    "status",
+    "effective_status",
+    "reason_codes",
+    "records_considered",
+    "thresholds",
+    "evidence",
+    "ranking",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {"const": "prior-report/v1"},
+    "tool": {"const": "priors"},
+    "model_class": {
+      "const": "observed_frequency",
+      "description": "Pinned. Counts, not inference. Every ranking traces to the records that produced it, which is the opposite of the explainability problem named as the third limitation of LLMs in hardware design at the APRIL session."
+    },
+    "signoff": {"const": false},
+    "status": {
+      "enum": ["GREEN", "RED", "NO_COVERAGE"],
+      "description": "NO_COVERAGE for an empty memory or one with no adequately-evidenced fix - the caller must be able to distinguish 'nothing has been tried' from 'everything tried failed'. RED only when a declared calibration ceiling was breached."
+    },
+    "effective_status": {"enum": ["GREEN", "RED", "NO_COVERAGE", "ERROR"]},
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "enum": ["EMPTY_MEMORY", "NO_FIX_WITH_ENOUGH_EVIDENCE",
+                 "CALIBRATION_GAP_EXCEEDED", "CALIBRATION_NOT_POSSIBLE",
+                 "CALIBRATION_UNINFORMATIVE"]
+      }
+    },
+    "memory_path": {"type": "string"},
+    "records_considered": {"type": "integer", "minimum": 0},
+    "kind_filter": {"type": ["string", "null"]},
+    "thresholds": {
+      "type": "object",
+      "required": ["min_attempts", "min_lower_bound"],
+      "properties": {
+        "min_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Below this a fix is withheld as INSUFFICIENT_EVIDENCE rather than ranked. Lowering it trades a refusal for a guess."
+        },
+        "min_lower_bound": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["distinct_fixes", "total_attempts", "total_successes"],
+      "properties": {
+        "distinct_fixes": {"type": "integer", "minimum": 0},
+        "total_attempts": {"type": "integer", "minimum": 0},
+        "total_successes": {"type": "integer", "minimum": 0},
+        "total_needs_human": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Counted but NOT in the denominator: needs_human records an undecided attempt, not a lost one, and charging it as a failure would penalise honest escalation."
+        },
+        "overall_success_rate": {"type": ["number", "null"],
+                                 "minimum": 0, "maximum": 1},
+        "kinds": {"type": "array", "items": {"type": "string"}},
+        "fixes_with_enough_evidence": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "ranking": {
+      "type": "object",
+      "required": ["recommended", "insufficient_evidence", "discouraged"],
+      "description": "Three lists, never merged. Merging them is how a thin record ends up looking like advice.",
+      "properties": {
+        "recommended": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/rankedFix"},
+          "description": "Ordered by the Wilson 95% LOWER BOUND, not the mean: 1/1 and 40/40 are both a 100% success rate, and ranking by the mean lets a single lucky record outrank a well-evidenced fix."
+        },
+        "insufficient_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/rankedFix"}
+        },
+        "discouraged": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/rankedFix"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "calibration": {
+      "type": ["object", "null"],
+      "description": "Leave-one-out: each observation is predicted from the OTHERS. Scoring the priors on the records that built them would report near-perfect calibration for any amount of data. Null when no observation had enough other evidence to be predicted at all.",
+      "properties": {
+        "samples": {"type": "integer", "minimum": 1},
+        "max_gap": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The honest headline: how far the stated confidence has been from what actually happened."
+        },
+        "brier": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean squared error of the predictions. Unlike accuracy it punishes confident wrong answers harder than hedged ones."
+        },
+        "populated_bins": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Fewer than 2 means the check could not show miscalibration at all, and the report emits CALIBRATION_UNINFORMATIVE."
+        },
+        "bins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bin_low": {"type": "number"},
+              "bin_high": {"type": "number"},
+              "count": {"type": "integer", "minimum": 0},
+              "predicted": {"type": ["number", "null"]},
+              "observed": {"type": ["number", "null"]},
+              "gap": {"type": ["number", "null"]}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "rankedFix": {
+      "type": "object",
+      "required": ["kind", "fix", "successes", "failures", "attempts"],
+      "properties": {
+        "kind": {"type": "string"},
+        "fix": {"type": "string", "minLength": 1},
+        "successes": {"type": "integer", "minimum": 0},
+        "failures": {"type": "integer", "minimum": 0},
+        "needs_human": {"type": "integer", "minimum": 0},
+        "attempts": {"type": "integer", "minimum": 0},
+        "success_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "ci95_low": {"type": "number", "minimum": 0, "maximum": 1},
+        "ci95_high": {"type": "number", "minimum": 0, "maximum": 1},
+        "rank_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "distinct_signatures": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "A fix that worked across many distinct error signatures is better evidenced than one that worked repeatedly on the same violation; this carries that difference instead of letting repetition inflate the count."
+        },
+        "projects": {"type": "array", "items": {"type": "string"}},
+        "withheld_because": {
+          "enum": ["INSUFFICIENT_EVIDENCE", "OBSERVED_FAILURE_RATE"]
+        },
+        "attempts_needed": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
