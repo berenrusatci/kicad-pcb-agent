@@ -46,3 +46,7 @@ Every tool follows the same rules (enforced by `tools/common/report_io.py`):
 required inputs are positional, `--json` always writes, stdout carries only
 machine-readable JSON, diagnostics go to stderr, exit codes are
 `0 = ok · 1 = fail · 2 = error`.
+
+## License
+
+[MIT](LICENSE)
